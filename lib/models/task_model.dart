@@ -1,0 +1,32 @@
+enum TaskPriority { high, medium, low }
+
+extension TaskPriorityExtension on TaskPriority {
+  String get displayName {
+    switch (this) {
+      case TaskPriority.high:
+        return 'High';
+      case TaskPriority.medium:
+        return 'Medium';
+      case TaskPriority.low:
+        return 'Low';
+    }
+  }
+}
+
+class TaskModel {
+  final String id;
+  final String title;
+  final String eventTitle;
+  final TaskPriority priority;
+  bool isCompleted;
+  final String category; // e.g. Today, Upcoming, Completed
+
+  TaskModel({
+    required this.id,
+    required this.title,
+    required this.eventTitle,
+    required this.priority,
+    this.isCompleted = false,
+    this.category = 'Today',
+  });
+}
