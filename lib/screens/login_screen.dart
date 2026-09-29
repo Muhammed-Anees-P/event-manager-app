@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
+import 'main_shell_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -44,7 +45,7 @@ class _LoginScreenState extends State<LoginScreen> {
     // email
     // password
 
-    await Future.delayed(const Duration(seconds: 1));
+    await Future.delayed(const Duration(milliseconds: 500));
 
     if (!mounted) return;
 
@@ -52,8 +53,10 @@ class _LoginScreenState extends State<LoginScreen> {
       _isLoading = false;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Login API will be connected next.')),
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const MainShellScreen()),
+      (route) => false,
     );
   }
 
@@ -449,7 +452,11 @@ class _LoginScreenState extends State<LoginScreen> {
             height: 50,
             child: OutlinedButton.icon(
               onPressed: () {
-                // TODO: Google login
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (_) => const MainShellScreen()),
+                  (route) => false,
+                );
               },
               icon: const Text(
                 'G',
