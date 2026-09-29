@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'screens/login_screen.dart';
+import 'screens/welcome_screen.dart';
 import 'theme/app_theme.dart';
 
 void main() {
@@ -16,12 +16,9 @@ class HayaEventManagementApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Haya Event Management',
-
       debugShowCheckedModeBanner: false,
-
       theme: AppTheme.lightTheme,
-
-      home: const LoginScreen(),
+      home: const WelcomeScreen(),
     );
   }
 }
