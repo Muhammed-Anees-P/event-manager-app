@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../data/app_data_repository.dart';
+import '../services/report_pdf_service.dart';
 import '../theme/app_theme.dart';
 
 class ReportsScreen extends StatefulWidget {
@@ -37,8 +38,15 @@ class _ReportsScreenState extends State<ReportsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Financial & Performance Summary', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+            const Text('Financial & Performance Executive Summary', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
             const SizedBox(height: 16),
+            _buildReportCard(
+              'Total Organized Events',
+              '${repository.totalEventsCount} Events',
+              Icons.calendar_today,
+              const Color(0xFF3B82F6),
+            ),
+            const SizedBox(height: 12),
             _buildReportCard(
               'Total Revenue Collected',
               '₹${repository.totalRevenue.toStringAsFixed(0)}',
@@ -64,10 +72,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
               width: double.infinity,
               height: 48,
               child: ElevatedButton.icon(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Report PDF downloaded successfully.')),
-                  );
+                onPressed: () async {
+                  await ReportPdfService.exportAndPrintReport(repository);
                 },
                 icon: const Icon(Icons.download, color: Colors.white),
                 label: const Text('Export Summary Report (PDF)'),
