@@ -67,7 +67,7 @@ class InvoicePdfService {
                     pw.SizedBox(height: 6),
                     pw.Text('Turning Moments Into Unforgettable Memories',
                         style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey600)),
-                    pw.Text('Email: admin@hayaevents.com | Phone: +91 98765 43210',
+                    pw.Text('Email: hayaeventmanagement.info@gmail.com | Phone: +91 9747451938',
                         style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600)),
                   ],
                 ),
