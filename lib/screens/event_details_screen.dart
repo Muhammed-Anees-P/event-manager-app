@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import '../data/app_data_repository.dart';
 import '../models/event_model.dart';
+import '../models/task_model.dart';
+import '../models/invoice_model.dart';
 import '../theme/app_theme.dart';
+import 'tasks_screen.dart';
 
 class EventDetailsScreen extends StatefulWidget {
   final EventModel event;
@@ -18,17 +22,24 @@ class EventDetailsScreen extends StatefulWidget {
 
 class _EventDetailsScreenState extends State<EventDetailsScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  final repository = AppDataRepository.instance;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
+    repository.addListener(_onDataChanged);
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    repository.removeListener(_onDataChanged);
     super.dispose();
+  }
+
+  void _onDataChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
@@ -48,16 +59,6 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> with SingleTick
         ),
         backgroundColor: Colors.white,
         elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.share_outlined, color: Color(0xFF4B5563)),
-            onPressed: () {},
-          ),
-          IconButton(
-            icon: const Icon(Icons.more_vert, color: Color(0xFF4B5563)),
-            onPressed: () {},
-          ),
-        ],
       ),
       body: Column(
         children: [
@@ -100,7 +101,7 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> with SingleTick
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          event.code,
+                          'Code: ${event.code} • Customer: ${event.manager}',
                           style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
                         ),
                       ],
@@ -128,18 +129,18 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> with SingleTick
 
                   // Tab Content View
                   SizedBox(
-                    height: 380,
+                    height: 400,
                     child: TabBarView(
                       controller: _tabController,
                       children: [
                         // Overview Tab
                         _buildOverviewTab(event),
                         // Tasks Tab
-                        _buildPlaceholderTab('Tasks for ${event.title}'),
+                        _buildEventTasksTab(event),
                         // Services Tab
-                        _buildPlaceholderTab('Services assigned to event'),
+                        _buildEventServicesTab(event),
                         // Invoices Tab
-                        _buildPlaceholderTab('Invoices & Bills'),
+                        _buildEventInvoicesTab(event),
                       ],
                     ),
                   ),
@@ -167,7 +168,7 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> with SingleTick
                   backgroundColor: AppTheme.primary,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
-                child: const Text('Edit Event', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                child: const Text('Edit Event Details', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
               ),
             ),
           ),
@@ -181,7 +182,6 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> with SingleTick
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         children: [
-          // Event Details Grid Card
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -199,7 +199,7 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> with SingleTick
                 const Divider(height: 16),
                 _buildDetailRow(Icons.people_outline, 'Guests', '${event.guests}'),
                 const Divider(height: 16),
-                _buildDetailRow(Icons.person_outline, 'Manager', event.manager),
+                _buildDetailRow(Icons.person_outline, 'Customer / Manager', event.manager),
                 const Divider(height: 16),
                 _buildDetailRow(Icons.info_outline, 'Status', event.status.displayName, isStatus: true, status: event.status),
               ],
@@ -242,7 +242,6 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> with SingleTick
                   ],
                 ),
                 const SizedBox(height: 14),
-                // Payment Progress Bar
                 ClipRRect(
                   borderRadius: BorderRadius.circular(6),
                   child: LinearProgressIndicator(
@@ -262,6 +261,195 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> with SingleTick
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEventTasksTab(EventModel event) {
+    final eventTasks = repository.tasks.where((t) => t.eventTitle.contains(event.title) || event.title.contains(t.eventTitle)).toList();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Tasks (${eventTasks.length})', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              ElevatedButton.icon(
+                onPressed: () => TasksScreen.showCreateDialog(context),
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('+ Add Event Task'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primary,
+                  minimumSize: const Size(0, 36),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Expanded(
+            child: eventTasks.isEmpty
+                ? const Center(child: Text('No tasks created for this event yet.'))
+                : ListView.builder(
+                    itemCount: eventTasks.length,
+                    itemBuilder: (context, idx) {
+                      final task = eventTasks[idx];
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFFE5E7EB)),
+                        ),
+                        child: Row(
+                          children: [
+                            Checkbox(
+                              value: task.isCompleted,
+                              activeColor: AppTheme.primary,
+                              onChanged: (val) {
+                                setState(() {
+                                  task.isCompleted = val ?? false;
+                                });
+                              },
+                            ),
+                            Expanded(child: Text(task.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEventServicesTab(EventModel event) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Assigned Vendors & Services', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              ElevatedButton.icon(
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Service assigned to event successfully.')),
+                  );
+                },
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('+ Assign Service'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primary,
+                  minimumSize: const Size(0, 36),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Expanded(
+            child: ListView(
+              children: [
+                _buildServiceTile('Royal Caterers', 'Catering & Buffet Spread', '₹1,50,000'),
+                _buildServiceTile('Pixel Perfect Studios', 'Photography & Videography', '₹75,000'),
+                _buildServiceTile('Luxe Floral Decor', 'Stage & Entrance Flower Setup', '₹45,000'),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildServiceTile(String vendor, String service, String price) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(vendor, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              Text(service, style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
+            ],
+          ),
+          Text(price, style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primaryDark)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEventInvoicesTab(EventModel event) {
+    final eventInvoices = repository.invoices.where((i) => i.customerName.contains(event.manager) || event.title.contains(i.customerName)).toList();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Invoices (${eventInvoices.length})', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              ElevatedButton.icon(
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Opening Invoice Generator for Event')),
+                  );
+                },
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('+ Create Invoice'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primary,
+                  minimumSize: const Size(0, 36),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Expanded(
+            child: eventInvoices.isEmpty
+                ? const Center(child: Text('No invoices created for this event yet.'))
+                : ListView.builder(
+                    itemCount: eventInvoices.length,
+                    itemBuilder: (context, idx) {
+                      final inv = eventInvoices[idx];
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFFE5E7EB)),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('#${inv.invoiceNumber} • ${inv.customerName}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                Text('Due: ${inv.dueDate}', style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
+                              ],
+                            ),
+                            Text('₹${inv.grandTotal.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF10B981))),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
           ),
         ],
       ),
@@ -320,12 +508,6 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> with SingleTick
         status.displayName,
         style: TextStyle(color: fg, fontSize: 11, fontWeight: FontWeight.bold),
       ),
-    );
-  }
-
-  Widget _buildPlaceholderTab(String label) {
-    return Center(
-      child: Text(label, style: const TextStyle(color: Color(0xFF6B7280))),
     );
   }
 }
