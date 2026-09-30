@@ -1,21 +1,137 @@
 import 'package:flutter/material.dart';
 import '../data/app_data_repository.dart';
+import '../models/app_notification_model.dart';
 import '../theme/app_theme.dart';
 
 class TopHeader extends StatelessWidget {
   final String actionLabel;
   final VoidCallback? onActionButtonPressed;
+  final VoidCallback? onOpenSettings;
 
   const TopHeader({
     super.key,
     required this.actionLabel,
     this.onActionButtonPressed,
+    this.onOpenSettings,
   });
+
+  void _showNotificationsDialog(BuildContext context) {
+    final repository = AppDataRepository.instance;
+    final notifications = repository.notifications;
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setState) {
+            return Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Notifications', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      TextButton(
+                        onPressed: () {
+                          repository.markAllNotificationsAsRead();
+                          setState(() {});
+                        },
+                        child: const Text('Mark all as read'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (notifications.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.all(20),
+                      child: Center(child: Text('No notifications right now.')),
+                    )
+                  else
+                    Flexible(
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: notifications.length,
+                        itemBuilder: (ctx, idx) {
+                          final n = notifications[idx];
+                          return ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: n.type == NotificationType.paymentOverdue
+                                  ? const Color(0xFFFEE2E2)
+                                  : const Color(0xFFEFF6FF),
+                              child: Icon(
+                                n.type == NotificationType.paymentOverdue
+                                    ? Icons.warning_amber_outlined
+                                    : Icons.event,
+                                color: n.type == NotificationType.paymentOverdue ? Colors.red : AppTheme.primary,
+                                size: 18,
+                              ),
+                            ),
+                            title: Text(n.title, style: TextStyle(fontSize: 13, fontWeight: n.isRead ? FontWeight.normal : FontWeight.bold)),
+                            subtitle: Text(n.message, style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
+                            trailing: Text(n.date, style: const TextStyle(fontSize: 10, color: Color(0xFF9CA3AF))),
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showHelpDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.headset_mic, color: AppTheme.primary),
+            SizedBox(width: 8),
+            Text('Help & Support'),
+          ],
+        ),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Need assistance with your events or account?', style: TextStyle(fontSize: 13)),
+            SizedBox(height: 12),
+            Text('Support Line / WhatsApp:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF6B7280))),
+            SizedBox(height: 4),
+            SelectableText(
+              '+91 9747451938',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.primaryDark),
+            ),
+            SizedBox(height: 8),
+            Text('Email: admin@hayaevents.com', style: TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+        ],
+      ),
+    );
+  }
+
+  void _showSearchModal(BuildContext context) {
+    showSearch(context: context, delegate: _GlobalSearchDelegate());
+  }
 
   @override
   Widget build(BuildContext context) {
-    final userName = AppDataRepository.instance.currentUserName;
+    final repository = AppDataRepository.instance;
+    final userName = repository.currentUserName;
     final initial = userName.isNotEmpty ? userName.substring(0, 1).toUpperCase() : 'A';
+    final unreadCount = repository.unreadNotificationsCount;
 
     return Container(
       decoration: const BoxDecoration(
@@ -34,8 +150,10 @@ class TopHeader extends StatelessWidget {
                 child: SizedBox(
                   height: 40,
                   child: TextField(
+                    readOnly: true,
+                    onTap: () => _showSearchModal(context),
                     decoration: InputDecoration(
-                      hintText: 'Search anything...',
+                      hintText: 'Search events, customers, invoices...',
                       hintStyle: const TextStyle(fontSize: 13, color: Color(0xFF9CA3AF)),
                       prefixIcon: const Icon(Icons.search, size: 20, color: Color(0xFF9CA3AF)),
                       filled: true,
@@ -58,33 +176,36 @@ class TopHeader extends StatelessWidget {
               Stack(
                 children: [
                   IconButton(
-                    onPressed: () {},
+                    onPressed: () => _showNotificationsDialog(context),
                     icon: const Icon(Icons.notifications_outlined, color: Color(0xFF4B5563)),
                   ),
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: const BoxDecoration(
-                        color: Colors.red,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Text(
-                        '3',
-                        style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                  if (unreadCount > 0)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Text(
+                          '$unreadCount',
+                          style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                        ),
                       ),
                     ),
-                  ),
                 ],
               ),
               IconButton(
-                onPressed: () {},
+                onPressed: () => _showHelpDialog(context),
                 icon: const Icon(Icons.help_outline, color: Color(0xFF4B5563)),
+                tooltip: 'Help & Support (+91 9747451938)',
               ),
               IconButton(
-                onPressed: () {},
+                onPressed: onOpenSettings,
                 icon: const Icon(Icons.settings_outlined, color: Color(0xFF4B5563)),
+                tooltip: 'Company Settings',
               ),
               const SizedBox(width: 12),
               // Profile
@@ -109,7 +230,6 @@ class TopHeader extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const Icon(Icons.keyboard_arrow_down, color: Color(0xFF6B7280), size: 18),
                 ],
               ),
             ],
@@ -164,6 +284,55 @@ class TopHeader extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _GlobalSearchDelegate extends SearchDelegate {
+  @override
+  List<Widget>? buildActions(BuildContext context) {
+    return [
+      IconButton(icon: const Icon(Icons.clear), onPressed: () => query = ''),
+    ];
+  }
+
+  @override
+  Widget? buildLeading(BuildContext context) {
+    return IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => close(context, null));
+  }
+
+  @override
+  Widget buildResults(BuildContext context) => _buildSearchResults(context);
+
+  @override
+  Widget buildSuggestions(BuildContext context) => _buildSearchResults(context);
+
+  Widget _buildSearchResults(BuildContext context) {
+    final repo = AppDataRepository.instance;
+    final q = query.toLowerCase();
+
+    final matchingEvents = repo.events.where((e) => e.title.toLowerCase().contains(q) || e.venue.toLowerCase().contains(q)).toList();
+    final matchingCustomers = repo.customers.where((c) => c.name.toLowerCase().contains(q) || c.email.toLowerCase().contains(q)).toList();
+    final matchingInvoices = repo.invoices.where((i) => i.customerName.toLowerCase().contains(q) || i.invoiceNumber.toLowerCase().contains(q)).toList();
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        if (matchingEvents.isNotEmpty) ...[
+          const Text('Events', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+          ...matchingEvents.map((e) => ListTile(title: Text(e.title), subtitle: Text(e.venue))),
+          const Divider(),
+        ],
+        if (matchingCustomers.isNotEmpty) ...[
+          const Text('Customers', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+          ...matchingCustomers.map((c) => ListTile(title: Text(c.name), subtitle: Text(c.email))),
+          const Divider(),
+        ],
+        if (matchingInvoices.isNotEmpty) ...[
+          const Text('Invoices', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+          ...matchingInvoices.map((i) => ListTile(title: Text('#${i.invoiceNumber} - ${i.customerName}'), subtitle: Text('₹${i.grandTotal.toStringAsFixed(0)}'))),
+        ],
+      ],
     );
   }
 }
