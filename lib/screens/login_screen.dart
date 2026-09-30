@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../data/app_data_repository.dart';
+import '../services/auth_session_service.dart';
+import '../services/supabase_service.dart';
 import '../theme/app_theme.dart';
 import 'main_shell_screen.dart';
 
@@ -17,8 +20,31 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
 
   bool _obscurePassword = true;
-  bool _rememberMe = false;
+  bool _rememberMe = true;
   bool _isLoading = false;
+  bool _isCheckingSession = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkSavedSession();
+  }
+
+  Future<void> _checkSavedSession() async {
+    final bool isLoggedIn = await AuthSessionService.instance.checkIsLoggedIn();
+    if (!mounted) return;
+
+    if (isLoggedIn) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const MainShellScreen()),
+      );
+    } else {
+      setState(() {
+        _isCheckingSession = false;
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -32,20 +58,70 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
+    final String inputUser = _emailController.text.trim().toLowerCase();
+    final String password = _passwordController.text;
+
     setState(() {
       _isLoading = true;
     });
 
-    // TODO:
-    // Connect backend login API here.
-    //
-    // Example:
-    // POST /auth/login
-    //
-    // email
-    // password
+    String targetEmail = inputUser;
+    String targetName = 'Anees';
 
-    await Future.delayed(const Duration(milliseconds: 500));
+    if (inputUser == 'anees' || inputUser == 'anees@hayaevents.com') {
+      targetEmail = 'anees@hayaevents.com';
+      targetName = 'Anees';
+    } else if (inputUser == 'mubeen' || inputUser == 'mubeen@hayaevents.com') {
+      targetEmail = 'mubeen@hayaevents.com';
+      targetName = 'Mubeen';
+    } else {
+      targetName = inputUser.split('@').first;
+      if (!targetEmail.contains('@')) {
+        targetEmail = '$inputUser@hayaevents.com';
+      }
+    }
+
+    bool isValid = (password == 'anees@2255');
+
+    if (SupabaseService.instance.isConfigured) {
+      try {
+        final res = await SupabaseService.instance.signInWithEmail(
+          email: targetEmail,
+          password: password,
+        );
+        if (res != null && res.session != null) {
+          isValid = true;
+        }
+      } catch (e) {
+        try {
+          await SupabaseService.instance.signUp(
+            email: targetEmail,
+            password: password,
+          );
+          isValid = true;
+        } catch (_) {}
+      }
+    } else {
+      await Future.delayed(const Duration(milliseconds: 300));
+    }
+
+    if (!isValid) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Invalid username or password. Use "anees" or "mubeen" with "anees@2255"'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    // Persistent login session
+    await AuthSessionService.instance.saveSession(targetName, targetEmail);
 
     if (!mounted) return;
 
@@ -62,46 +138,44 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isCheckingSession) {
+      return const Scaffold(
+        backgroundColor: AppTheme.background,
+        body: Center(
+          child: CircularProgressIndicator(color: AppTheme.primary),
+        ),
+      );
+    }
+
     return Scaffold(
       body: LayoutBuilder(
         builder: (context, constraints) {
           final width = constraints.maxWidth;
 
-          // Tablet landscape / large screens
           if (width >= 900) {
             return _buildTabletLayout();
           }
 
-          // Phone / portrait tablet
           return _buildMobileLayout();
         },
       ),
     );
   }
 
-  // ============================================================
-  // TABLET
-  // ============================================================
-
+  // TABLET / DESKTOP LAYOUT
   Widget _buildTabletLayout() {
     return Row(
       children: [
-        // LEFT IMAGE
         Expanded(flex: 5, child: _buildImageSection()),
-
-        // RIGHT LOGIN
         Expanded(
           flex: 5,
           child: Container(
             color: AppTheme.background,
             child: Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 60,
-                  vertical: 40,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 60, vertical: 40),
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 500),
+                  constraints: const BoxConstraints(maxWidth: 460),
                   child: _buildLoginCard(),
                 ),
               ),
@@ -112,21 +186,17 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // ============================================================
-  // MOBILE / PORTRAIT
-  // ============================================================
-
+  // MOBILE LAYOUT
   Widget _buildMobileLayout() {
     return SafeArea(
       child: SingleChildScrollView(
         child: Column(
           children: [
             SizedBox(
-              height: 300,
+              height: 260,
               width: double.infinity,
               child: _buildImageSection(),
             ),
-
             Padding(
               padding: const EdgeInsets.all(24),
               child: _buildLoginCard(showCardBackground: false),
@@ -137,17 +207,12 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // ============================================================
-  // IMAGE SECTION
-  // ============================================================
-
+  // BRAND IMAGE SECTION
   Widget _buildImageSection() {
     return Stack(
       fit: StackFit.expand,
       children: [
         Image.asset('assets/images/login_bg.png', fit: BoxFit.cover),
-
-        // Dark overlay
         Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -155,23 +220,19 @@ class _LoginScreenState extends State<LoginScreen> {
               end: Alignment.bottomCenter,
               stops: const [0.2, 1.0],
               colors: [
-                Colors.black.withValues(alpha: 0.10),
-                Colors.black.withValues(alpha: 0.72),
+                Colors.black.withValues(alpha: 0.15),
+                Colors.black.withValues(alpha: 0.75),
               ],
             ),
           ),
         ),
-
-        // Brand
         Positioned(
-          top: 35,
-          left: 35,
+          top: 30,
+          left: 30,
           child: Row(
             children: [
-              _buildLogo(size: 42),
-
-              const SizedBox(width: 12),
-
+              _buildLogo(size: 40),
+              const SizedBox(width: 10),
               const Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -179,7 +240,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     'Haya',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 26,
+                      fontSize: 24,
                       fontWeight: FontWeight.w600,
                       letterSpacing: 0.5,
                     ),
@@ -188,7 +249,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     'Event Management',
                     style: TextStyle(
                       color: Colors.white70,
-                      fontSize: 12,
+                      fontSize: 11,
                       letterSpacing: 1,
                     ),
                   ),
@@ -197,12 +258,10 @@ class _LoginScreenState extends State<LoginScreen> {
             ],
           ),
         ),
-
-        // Bottom text
         Positioned(
-          left: 40,
-          right: 40,
-          bottom: 45,
+          left: 30,
+          right: 30,
+          bottom: 35,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -210,24 +269,19 @@ class _LoginScreenState extends State<LoginScreen> {
                 'Turning Moments Into\nUnforgettable Memories',
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 26,
+                  fontSize: 22,
                   height: 1.25,
                   fontWeight: FontWeight.w500,
                 ),
               ),
-
-              const SizedBox(height: 18),
-
-              Container(width: 50, height: 2, color: Colors.white70),
-
-              const SizedBox(height: 14),
-
+              const SizedBox(height: 12),
+              Container(width: 40, height: 2, color: Colors.white70),
+              const SizedBox(height: 10),
               const Text(
                 'Events  •  People  •  Happiness',
                 style: TextStyle(
                   color: Colors.white70,
-                  fontSize: 13,
-                  letterSpacing: 0.5,
+                  fontSize: 12,
                 ),
               ),
             ],
@@ -237,102 +291,80 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // ============================================================
-  // LOGIN CARD
-  // ============================================================
-
+  // CLEAN LOGIN CARD (Username, Password, Login Button)
   Widget _buildLoginCard({bool showCardBackground = true}) {
     final content = Form(
       key: _formKey,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Logo
           Center(
             child: Column(
               children: [
-                _buildLogo(size: 58, dark: true),
-
-                const SizedBox(height: 20),
-
+                _buildLogo(size: 54, dark: true),
+                const SizedBox(height: 16),
                 const Text(
-                  'Welcome Back',
+                  'Sign In to Account',
                   style: TextStyle(
-                    fontSize: 30,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 26,
+                    fontWeight: FontWeight.bold,
                     color: AppTheme.textDark,
                   ),
                 ),
-
-                const SizedBox(height: 6),
-
+                const SizedBox(height: 4),
                 const Text(
-                  'Sign in to manage your events',
-                  style: TextStyle(fontSize: 14, color: AppTheme.textMuted),
+                  'Enter your username and password to continue',
+                  style: TextStyle(fontSize: 13, color: AppTheme.textMuted),
                 ),
               ],
             ),
           ),
+          const SizedBox(height: 32),
 
-          const SizedBox(height: 35),
-
-          // EMAIL
+          // Username Field
           const Text(
-            'Email',
+            'Username',
             style: TextStyle(
               fontSize: 13,
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.w600,
               color: AppTheme.textDark,
             ),
           ),
-
           const SizedBox(height: 8),
-
           TextFormField(
             controller: _emailController,
-            keyboardType: TextInputType.emailAddress,
             textInputAction: TextInputAction.next,
             decoration: const InputDecoration(
-              hintText: 'admin@hayaevents.com',
-              prefixIcon: Icon(Icons.email_outlined, size: 20),
+              hintText: 'Enter username (anees or mubeen)',
+              prefixIcon: Icon(Icons.person_outline, size: 20),
             ),
             validator: (value) {
               if (value == null || value.trim().isEmpty) {
-                return 'Please enter your email';
+                return 'Please enter username';
               }
-
-              if (!value.contains('@')) {
-                return 'Please enter a valid email';
-              }
-
               return null;
             },
           ),
-
           const SizedBox(height: 20),
 
-          // PASSWORD
+          // Password Field
           const Text(
             'Password',
             style: TextStyle(
               fontSize: 13,
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.w600,
               color: AppTheme.textDark,
             ),
           ),
-
           const SizedBox(height: 8),
-
           TextFormField(
             controller: _passwordController,
             obscureText: _obscurePassword,
             textInputAction: TextInputAction.done,
             onFieldSubmitted: (_) => _login(),
             decoration: InputDecoration(
-              hintText: 'Enter your password',
-
+              hintText: 'Enter password',
               prefixIcon: const Icon(Icons.lock_outline, size: 20),
-
               suffixIcon: IconButton(
                 onPressed: () {
                   setState(() {
@@ -348,25 +380,19 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
             validator: (value) {
               if (value == null || value.isEmpty) {
-                return 'Please enter your password';
+                return 'Please enter password';
               }
-
-              if (value.length < 6) {
-                return 'Password must contain at least 6 characters';
-              }
-
               return null;
             },
           ),
+          const SizedBox(height: 14),
 
-          const SizedBox(height: 12),
-
-          // REMEMBER / FORGOT
+          // Remember Me Checkbox
           Row(
             children: [
               SizedBox(
-                width: 24,
-                height: 24,
+                width: 20,
+                height: 20,
                 child: Checkbox(
                   value: _rememberMe,
                   activeColor: AppTheme.primary,
@@ -377,128 +403,36 @@ class _LoginScreenState extends State<LoginScreen> {
                   },
                 ),
               ),
-
               const SizedBox(width: 8),
-
-              const Text(
-                'Remember me',
-                style: TextStyle(fontSize: 13, color: AppTheme.textMuted),
-              ),
-
-              const Spacer(),
-
-              TextButton(
-                onPressed: () {
-                  // TODO: Forgot password
-                },
-                child: const Text(
-                  'Forgot password?',
-                  style: TextStyle(color: AppTheme.primaryDark, fontSize: 13),
-                ),
-              ),
+              const Text('Keep me logged in', style: TextStyle(fontSize: 13, color: AppTheme.textMuted)),
             ],
           ),
+          const SizedBox(height: 24),
 
-          const SizedBox(height: 15),
-
-          // SIGN IN
+          // LOGIN BUTTON
           SizedBox(
             width: double.infinity,
+            height: 48,
             child: ElevatedButton(
               onPressed: _isLoading ? null : _login,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primary,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
               child: _isLoading
                   ? const SizedBox(
                       width: 22,
                       height: 22,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                     )
                   : const Text(
-                      'Sign In',
+                      'Login',
                       style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
                       ),
                     ),
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
-          // OR
-          Row(
-            children: [
-              const Expanded(child: Divider()),
-
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 15),
-                child: Text(
-                  'or',
-                  style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
-                ),
-              ),
-
-              const Expanded(child: Divider()),
-            ],
-          ),
-
-          const SizedBox(height: 20),
-
-          // GOOGLE
-          SizedBox(
-            width: double.infinity,
-            height: 50,
-            child: OutlinedButton.icon(
-              onPressed: () {
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (_) => const MainShellScreen()),
-                  (route) => false,
-                );
-              },
-              icon: const Text(
-                'G',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              label: const Text('Continue with Google'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppTheme.textDark,
-                side: const BorderSide(color: Color(0xFFD8DDE5)),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 35),
-
-          // FOOTER
-          Center(
-            child: Column(
-              children: [
-                _buildLogo(size: 28, dark: true),
-
-                const SizedBox(height: 8),
-
-                const Text(
-                  'Haya Event Management',
-                  style: TextStyle(
-                    color: AppTheme.primaryDark,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-
-                const SizedBox(height: 5),
-
-                const Text(
-                  'Events  •  People  •  Happiness',
-                  style: TextStyle(color: AppTheme.textMuted, fontSize: 11),
-                ),
-              ],
             ),
           ),
         ],
@@ -510,15 +444,15 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 42, vertical: 42),
+      padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 36),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            blurRadius: 30,
+            blurRadius: 24,
             spreadRadius: 0,
-            offset: const Offset(0, 10),
+            offset: const Offset(0, 8),
             color: Colors.black.withValues(alpha: 0.06),
           ),
         ],
@@ -526,10 +460,6 @@ class _LoginScreenState extends State<LoginScreen> {
       child: content,
     );
   }
-
-  // ============================================================
-  // LOGO
-  // ============================================================
 
   Widget _buildLogo({required double size, bool dark = false}) {
     return Container(
