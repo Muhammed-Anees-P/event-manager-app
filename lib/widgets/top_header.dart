@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../data/app_data_repository.dart';
 import '../theme/app_theme.dart';
 
 class TopHeader extends StatelessWidget {
@@ -13,6 +14,9 @@ class TopHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final userName = AppDataRepository.instance.currentUserName;
+    final initial = userName.isNotEmpty ? userName.substring(0, 1).toUpperCase() : 'A';
+
     return Container(
       decoration: const BoxDecoration(
         color: Colors.white,
@@ -84,28 +88,28 @@ class TopHeader extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               // Profile
-              const Row(
+              Row(
                 children: [
                   CircleAvatar(
                     radius: 16,
                     backgroundColor: AppTheme.primary,
-                    child: Text('A', style: TextStyle(color: Colors.white, fontSize: 13)),
+                    child: Text(initial, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
                   ),
-                  SizedBox(width: 8),
+                  const SizedBox(width: 8),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Admin',
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF111827)),
+                        userName,
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF111827)),
                       ),
-                      Text(
+                      const Text(
                         'Administrator',
                         style: TextStyle(fontSize: 11, color: Color(0xFF6B7280)),
                       ),
                     ],
                   ),
-                  Icon(Icons.keyboard_arrow_down, color: Color(0xFF6B7280), size: 18),
+                  const Icon(Icons.keyboard_arrow_down, color: Color(0xFF6B7280), size: 18),
                 ],
               ),
             ],
@@ -115,20 +119,20 @@ class TopHeader extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Column(
+              Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
                       Text(
-                        'Good Morning, Admin ',
-                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF111827)),
+                        'Good Morning, $userName ',
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF111827)),
                       ),
-                      Text('👋', style: TextStyle(fontSize: 20)),
+                      const Text('👋', style: TextStyle(fontSize: 20)),
                     ],
                   ),
-                  SizedBox(height: 2),
-                  Text(
+                  const SizedBox(height: 2),
+                  const Text(
                     'Let\'s make more beautiful moments happen today.',
                     style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
                   ),
