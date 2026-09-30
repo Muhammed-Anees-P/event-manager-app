@@ -15,6 +15,15 @@ class TopHeader extends StatelessWidget {
     this.onOpenSettings,
   });
 
+  String _getCurrentFormattedDate() {
+    final now = DateTime.now();
+    const weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const months = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final weekday = weekdays[now.weekday - 1];
+    final month = months[now.month];
+    return '$weekday, ${now.day} $month ${now.year}';
+  }
+
   void _showNotificationsDialog(BuildContext context) {
     final repository = AppDataRepository.instance;
     final notifications = repository.notifications;
@@ -260,9 +269,9 @@ class TopHeader extends StatelessWidget {
               ),
               Row(
                 children: [
-                  const Text(
-                    'Friday, 12 Sep 2026',
-                    style: TextStyle(fontSize: 12, color: Color(0xFF6B7280), fontWeight: FontWeight.w500),
+                  Text(
+                    _getCurrentFormattedDate(),
+                    style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280), fontWeight: FontWeight.w500),
                   ),
                   const SizedBox(width: 16),
                   if (onActionButtonPressed != null && actionLabel.isNotEmpty)
