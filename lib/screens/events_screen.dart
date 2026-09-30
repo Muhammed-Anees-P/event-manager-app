@@ -313,6 +313,22 @@ class _CreateEventModalState extends State<_CreateEventModal> {
   String selectedCustomer = 'Sneha Kapoor';
   EventStatus selectedStatus = EventStatus.planning;
 
+  Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: now.add(const Duration(days: 7)),
+      firstDate: now.subtract(const Duration(days: 365)),
+      lastDate: now.add(const Duration(days: 365 * 5)),
+    );
+    if (picked != null) {
+      const months = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      setState(() {
+        dateController.text = '${picked.day} ${months[picked.month]} ${picked.year}';
+      });
+    }
+  }
+
   @override
   void dispose() {
     titleController.dispose();
@@ -330,6 +346,10 @@ class _CreateEventModalState extends State<_CreateEventModal> {
     final customers = AppDataRepository.instance.customers.map((c) => c.name).toList();
     if (customers.isNotEmpty && !customers.contains(selectedCustomer)) {
       selectedCustomer = customers.first;
+    }
+    final venues = AppDataRepository.instance.venues;
+    if (venues.isNotEmpty && venueController.text.isEmpty) {
+      venueController.text = venues.first.name;
     }
 
     return Padding(
@@ -371,6 +391,14 @@ class _CreateEventModalState extends State<_CreateEventModal> {
                 validator: (v) => v == null || v.trim().isEmpty ? 'Please enter event title' : null,
               ),
               const SizedBox(height: 12),
+              if (venues.isNotEmpty)
+                DropdownButtonFormField<String>(
+                  value: venues.any((v) => v.name == venueController.text) ? venueController.text : venues.first.name,
+                  decoration: const InputDecoration(labelText: 'Select Saved Venue *'),
+                  items: venues.map((v) => DropdownMenuItem(value: v.name, child: Text('${v.name} (${v.location})'))).toList(),
+                  onChanged: (v) => setState(() => venueController.text = v!),
+                ),
+              const SizedBox(height: 12),
               TextFormField(
                 controller: venueController,
                 decoration: const InputDecoration(labelText: 'Venue Name & Address *'),
@@ -382,6 +410,8 @@ class _CreateEventModalState extends State<_CreateEventModal> {
                   Expanded(
                     child: TextFormField(
                       controller: dateController,
+                      readOnly: true,
+                      onTap: _pickDate,
                       decoration: const InputDecoration(labelText: 'Future Event Date', prefixIcon: Icon(Icons.calendar_today, size: 18)),
                     ),
                   ),
