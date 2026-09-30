@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import '../data/app_data_repository.dart';
 import '../models/event_model.dart';
 import '../services/auth_session_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/sidebar.dart';
 import '../widgets/top_header.dart';
 
+import 'company_settings_screen.dart';
 import 'create_invoice_screen.dart';
 import 'customers_screen.dart';
 import 'dashboard_screen.dart';
@@ -12,7 +14,6 @@ import 'enquiries_screen.dart';
 import 'event_details_screen.dart';
 import 'events_screen.dart';
 import 'expenses_screen.dart';
-import 'generic_section_screen.dart';
 import 'inventory_screen.dart';
 import 'login_screen.dart';
 import 'more_screen.dart';
@@ -20,6 +21,7 @@ import 'payments_screen.dart';
 import 'quotations_screen.dart';
 import 'reports_screen.dart';
 import 'tasks_screen.dart';
+import 'users_privileges_screen.dart';
 import 'vendors_screen.dart';
 import 'venues_screen.dart';
 import 'welcome_screen.dart';
@@ -178,9 +180,9 @@ class _MainShellScreenState extends State<MainShellScreen> {
       case 12:
         return const InventoryScreen();
       case 13:
-        return const GenericSectionScreen(title: 'Company Settings', icon: Icons.settings_outlined);
+        return const CompanySettingsScreen();
       case 14:
-        return const GenericSectionScreen(title: 'Users & Privileges', icon: Icons.admin_panel_settings_outlined);
+        return const UsersPrivilegesScreen();
       case 15:
         return MoreScreen(onNavigateToTab: _onNavigateToTab);
       default:
@@ -283,6 +285,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
                       TopHeader(
                         actionLabel: _getHeaderActionLabel(),
                         onActionButtonPressed: _getHeaderActionCallback(),
+                        onOpenSettings: () => _onNavigateToTab(13),
                       ),
                       Expanded(
                         child: _buildContentBody(true),
@@ -331,12 +334,19 @@ class _MainShellScreenState extends State<MainShellScreen> {
                   actions: [
                     IconButton(
                       icon: const Icon(Icons.search, color: Color(0xFF4B5563)),
-                      onPressed: () {},
+                      onPressed: () {
+                        showSearch(context: context, delegate: _MobileSearchDelegate());
+                      },
                     ),
-                    const CircleAvatar(
+                    CircleAvatar(
                       radius: 14,
                       backgroundColor: AppTheme.primary,
-                      child: Text('A', style: TextStyle(color: Colors.white, fontSize: 12)),
+                      child: Text(
+                        AppDataRepository.instance.currentUserName.isNotEmpty
+                            ? AppDataRepository.instance.currentUserName.substring(0, 1).toUpperCase()
+                            : 'A',
+                        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
                     ),
                     const SizedBox(width: 16),
                   ],
@@ -363,6 +373,49 @@ class _MainShellScreenState extends State<MainShellScreen> {
           ),
         );
       },
+    );
+  }
+}
+
+class _MobileSearchDelegate extends SearchDelegate {
+  @override
+  List<Widget>? buildActions(BuildContext context) {
+    return [
+      IconButton(icon: const Icon(Icons.clear), onPressed: () => query = ''),
+    ];
+  }
+
+  @override
+  Widget? buildLeading(BuildContext context) {
+    return IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => close(context, null));
+  }
+
+  @override
+  Widget buildResults(BuildContext context) => _buildSearchResults(context);
+
+  @override
+  Widget buildSuggestions(BuildContext context) => _buildSearchResults(context);
+
+  Widget _buildSearchResults(BuildContext context) {
+    final repo = AppDataRepository.instance;
+    final q = query.toLowerCase();
+
+    final matchingEvents = repo.events.where((e) => e.title.toLowerCase().contains(q) || e.venue.toLowerCase().contains(q)).toList();
+    final matchingCustomers = repo.customers.where((c) => c.name.toLowerCase().contains(q) || c.email.toLowerCase().contains(q)).toList();
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        if (matchingEvents.isNotEmpty) ...[
+          const Text('Events', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+          ...matchingEvents.map((e) => ListTile(title: Text(e.title), subtitle: Text(e.venue))),
+          const Divider(),
+        ],
+        if (matchingCustomers.isNotEmpty) ...[
+          const Text('Customers', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+          ...matchingCustomers.map((c) => ListTile(title: Text(c.name), subtitle: Text(c.email))),
+        ],
+      ],
     );
   }
 }
