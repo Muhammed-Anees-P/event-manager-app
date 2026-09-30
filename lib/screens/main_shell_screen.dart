@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/event_model.dart';
+import '../services/auth_session_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/sidebar.dart';
 import '../widgets/top_header.dart';
@@ -13,6 +14,7 @@ import 'events_screen.dart';
 import 'expenses_screen.dart';
 import 'generic_section_screen.dart';
 import 'inventory_screen.dart';
+import 'login_screen.dart';
 import 'more_screen.dart';
 import 'payments_screen.dart';
 import 'quotations_screen.dart';
@@ -48,12 +50,15 @@ class _MainShellScreenState extends State<MainShellScreen> {
     });
   }
 
-  void _logout() {
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => const WelcomeScreen()),
-      (route) => false,
-    );
+  void _logout() async {
+    await AuthSessionService.instance.clearSession();
+    if (mounted) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (route) => false,
+      );
+    }
   }
 
   String _getHeaderActionLabel() {
