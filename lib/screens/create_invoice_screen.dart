@@ -1,16 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../data/app_data_repository.dart';
 import '../models/invoice_model.dart';
+import '../models/event_model.dart';
+import '../models/customer_model.dart';
 import '../services/invoice_pdf_service.dart';
 import '../theme/app_theme.dart';
 
 class CreateInvoiceScreen extends StatefulWidget {
   final VoidCallback? onBack;
+  final EventModel? initialEvent;
 
   const CreateInvoiceScreen({
     super.key,
     this.onBack,
+    this.initialEvent,
   });
 
   @override
@@ -43,7 +48,11 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   void initState() {
     super.initState();
     repository.addListener(_onDataChanged);
-    _resetFormToNew();
+    if (widget.initialEvent != null) {
+      _loadEventForInvoice(widget.initialEvent!);
+    } else {
+      _resetFormToNew();
+    }
   }
 
   @override
@@ -64,6 +73,58 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
     if (mounted) setState(() {});
   }
 
+  void _loadEventForInvoice(EventModel event) {
+    _customerController.text = event.manager;
+    _venueController.text = event.venue;
+    _invoiceDateController.text = '12 Sep 2026';
+    _dueDateController.text = event.date;
+    _invoiceNumberController.text = 'INV-2026-00${repository.invoices.length + 1}';
+    _discountController.text = '0';
+    _taxController.text = '18';
+    _advanceController.text = event.amountReceived.toStringAsFixed(0);
+
+    _showDiscount = false;
+    _showTax = true;
+    _showAdvancePaid = event.amountReceived > 0;
+
+    _sections = [
+      InvoiceSection(
+        heading: event.title,
+        items: [
+          InvoiceItem(name: 'Event Contract Package', price: event.contractValue),
+          ...event.services.map((s) => InvoiceItem(name: s, price: 0)),
+        ],
+      ),
+    ];
+    _mainTab = 1;
+    _formSubTab = 0;
+  }
+
+  bool _hasValidCustomerPhone(InvoiceModel invoice) {
+    if (invoice.customerName.trim().isEmpty) return false;
+    final matchingCustomer = repository.customers.firstWhere(
+      (c) => c.name.toLowerCase() == invoice.customerName.trim().toLowerCase(),
+      orElse: () => CustomerModel(id: '', name: '', email: '', phone: '', totalEvents: 0),
+    );
+    return matchingCustomer.phone.trim().isNotEmpty && matchingCustomer.phone.trim().length >= 8;
+  }
+
+  Future<void> _sendViaWhatsApp(InvoiceModel invoice) async {
+    final message = Uri.encodeComponent(
+      "Hello ${invoice.customerName},\n\nHere is your invoice #${invoice.invoiceNumber} from Haya Event Management for venue ${invoice.venue}.\nTotal Amount: ₹${invoice.grandTotal.toStringAsFixed(0)}\nDue Date: ${invoice.dueDate}\n\nThank you for choosing us!",
+    );
+    final url = Uri.parse("https://wa.me/?text=$message");
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not launch WhatsApp')),
+        );
+      }
+    }
+  }
+
   void _resetFormToNew() {
     _customerController.text = '';
     _venueController.text = '';
@@ -78,20 +139,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
     _showTax = true;
     _showAdvancePaid = false;
 
-    _sections = [
-      InvoiceSection(
-        heading: 'Food & Catering',
-        items: [
-          InvoiceItem(name: 'Buffet Spread', qty: 100, rate: 1000, price: 120000),
-        ],
-      ),
-      InvoiceSection(
-        heading: 'Decor & Services',
-        items: [
-          InvoiceItem(name: 'Floral Stage Decor', price: 30000),
-        ],
-      ),
-    ];
+    _sections = []; // No default dummy data filled in new invoice form
   }
 
   void _loadInvoiceForEdit(InvoiceModel invoice) {
@@ -199,11 +247,10 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
             ),
             child: Row(
               children: [
-                if (widget.onBack != null)
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back, color: Color(0xFF1F2937)),
-                    onPressed: widget.onBack,
-                  ),
+                IconButton(
+                  icon: const Icon(Icons.arrow_back, color: Color(0xFF1F2937)),
+                  onPressed: widget.onBack ?? () => Navigator.pop(context),
+                ),
                 Expanded(
                   child: Row(
                     children: [
@@ -549,7 +596,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                 if (isMobile) ...[
                   TextField(
                     controller: _customerController,
-                    decoration: const InputDecoration(labelText: 'Customer Name *'),
+                    decoration: const InputDecoration(labelText: 'Customer Name (Optional)'),
                     onChanged: (_) => setState(() {}),
                   ),
                   const SizedBox(height: 12),
@@ -582,7 +629,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                       Expanded(
                         child: TextField(
                           controller: _customerController,
-                          decoration: const InputDecoration(labelText: 'Customer Name *'),
+                          decoration: const InputDecoration(labelText: 'Customer Name (Optional)'),
                           onChanged: (_) => setState(() {}),
                         ),
                       ),
@@ -1077,6 +1124,18 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                           icon: const Icon(Icons.download, size: 16),
                           label: const Text('Export PDF'),
                         ),
+                        if (_hasValidCustomerPhone(invoice)) ...[
+                          const SizedBox(width: 8),
+                          ElevatedButton.icon(
+                            onPressed: () => _sendViaWhatsApp(invoice),
+                            icon: const Icon(Icons.share, size: 16),
+                            label: const Text('WhatsApp'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF25D366),
+                              minimumSize: const Size(0, 38),
+                            ),
+                          ),
+                        ],
                         const SizedBox(width: 8),
                         ElevatedButton.icon(
                           onPressed: () async {
