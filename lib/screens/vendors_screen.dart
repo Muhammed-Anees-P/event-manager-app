@@ -40,6 +40,37 @@ class _VendorsScreenState extends State<VendorsScreen> {
     if (mounted) setState(() {});
   }
 
+  void _showVendorDetail(BuildContext context, VendorModel v) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(v.name),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Category: ${v.category}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            const SizedBox(height: 6),
+            Text('Phone: ${v.phone}', style: const TextStyle(color: Color(0xFF4B5563))),
+            Text('Email: ${v.email}', style: const TextStyle(color: Color(0xFF4B5563))),
+            Text('Rating: ${v.rating}', style: const TextStyle(color: Color(0xFFD97706), fontWeight: FontWeight.bold)),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+          IconButton(
+            onPressed: () async {
+              await repository.deleteVendor(v.id);
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
+            icon: const Icon(Icons.delete_outline, color: Colors.red),
+            tooltip: 'Delete Vendor',
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final vendors = repository.vendors;
@@ -53,37 +84,41 @@ class _VendorsScreenState extends State<VendorsScreen> {
               itemCount: vendors.length,
               itemBuilder: (context, index) {
                 final v = vendors[index];
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFFE5E7EB)),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: AppTheme.primary.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
+                return InkWell(
+                  onTap: () => _showVendorDetail(context, v),
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFE5E7EB)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: AppTheme.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.storefront_outlined, color: AppTheme.primary, size: 20),
                         ),
-                        child: const Icon(Icons.storefront_outlined, color: AppTheme.primary, size: 20),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(v.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
-                            const SizedBox(height: 2),
-                            Text('${v.category} • ${v.phone}', style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
-                          ],
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(v.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+                              const SizedBox(height: 2),
+                              Text('${v.category} • ${v.phone}', style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+                            ],
+                          ),
                         ),
-                      ),
-                      Text(v.rating, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFFD97706))),
-                    ],
+                        Text(v.rating, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFFD97706))),
+                      ],
+                    ),
                   ),
                 );
               },
@@ -147,14 +182,14 @@ class _CreateVendorModalState extends State<_CreateVendorModal> {
             const SizedBox(height: 12),
             TextFormField(
               controller: nameController,
-              decoration: const InputDecoration(labelText: 'Vendor Name'),
-              validator: (v) => v == null || v.trim().isEmpty ? 'Please enter vendor name' : null,
+              decoration: const InputDecoration(labelText: 'Vendor Name *'),
+              validator: (v) => v == null || v.trim().isEmpty ? 'Please enter name' : null,
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
               value: selectedCategory,
-              decoration: const InputDecoration(labelText: 'Service Category'),
-              items: ['Catering', 'Photography', 'Decor', 'Sound & Lighting', 'Florist', 'Transportation']
+              decoration: const InputDecoration(labelText: 'Category'),
+              items: ['Catering', 'Photography', 'Decor', 'DJ & Audio', 'Makeup', 'Lighting']
                   .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                   .toList(),
               onChanged: (v) => setState(() => selectedCategory = v!),
@@ -162,7 +197,7 @@ class _CreateVendorModalState extends State<_CreateVendorModal> {
             const SizedBox(height: 12),
             TextFormField(
               controller: phoneController,
-              decoration: const InputDecoration(labelText: 'Phone Number'),
+              decoration: const InputDecoration(labelText: 'Phone Number *'),
               validator: (v) => v == null || v.trim().isEmpty ? 'Please enter phone' : null,
             ),
             const SizedBox(height: 12),
@@ -182,8 +217,8 @@ class _CreateVendorModalState extends State<_CreateVendorModal> {
                       name: nameController.text.trim(),
                       category: selectedCategory,
                       phone: phoneController.text.trim(),
-                      email: emailController.text.trim().isEmpty ? 'vendor@hayaevents.com' : emailController.text.trim(),
-                      rating: '5.0 ⭐',
+                      email: emailController.text.trim(),
+                      rating: '⭐ 4.8',
                     );
                     await AppDataRepository.instance.addVendor(vendor);
                     if (context.mounted) Navigator.pop(context);
