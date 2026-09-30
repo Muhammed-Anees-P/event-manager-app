@@ -40,6 +40,37 @@ class _VenuesScreenState extends State<VenuesScreen> {
     if (mounted) setState(() {});
   }
 
+  void _showVenueDetail(BuildContext context, VenueModel v) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(v.name),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Location: ${v.location}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            const SizedBox(height: 6),
+            Text('Capacity: ${v.capacity} guests', style: const TextStyle(color: Color(0xFF4B5563))),
+            Text('Price per Day: ₹${v.pricePerDay.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primaryDark, fontSize: 16)),
+            Text('Contact Person: ${v.contactPerson}', style: const TextStyle(color: Color(0xFF4B5563))),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+          IconButton(
+            onPressed: () async {
+              await repository.deleteVenue(v.id);
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
+            icon: const Icon(Icons.delete_outline, color: Colors.red),
+            tooltip: 'Delete Venue',
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final venues = repository.venues;
@@ -53,37 +84,41 @@ class _VenuesScreenState extends State<VenuesScreen> {
               itemCount: venues.length,
               itemBuilder: (context, index) {
                 final v = venues[index];
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFFE5E7EB)),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: AppTheme.primary.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
+                return InkWell(
+                  onTap: () => _showVenueDetail(context, v),
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFE5E7EB)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: AppTheme.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.location_on_outlined, color: AppTheme.primary, size: 20),
                         ),
-                        child: const Icon(Icons.location_on_outlined, color: AppTheme.primary, size: 20),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(v.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
-                            const SizedBox(height: 2),
-                            Text('${v.location} • Capacity: ${v.capacity}', style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
-                          ],
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(v.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+                              const SizedBox(height: 2),
+                              Text('${v.location} • Capacity: ${v.capacity}', style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+                            ],
+                          ),
                         ),
-                      ),
-                      Text('₹${v.pricePerDay.toStringAsFixed(0)}/day', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppTheme.primaryDark)),
-                    ],
+                        Text('₹${v.pricePerDay.toStringAsFixed(0)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppTheme.primaryDark)),
+                      ],
+                    ),
                   ),
                 );
               },
@@ -110,6 +145,7 @@ class _CreateVenueModalState extends State<_CreateVenueModal> {
   final locationController = TextEditingController();
   final capacityController = TextEditingController();
   final priceController = TextEditingController();
+  final contactController = TextEditingController();
 
   @override
   void dispose() {
@@ -117,6 +153,7 @@ class _CreateVenueModalState extends State<_CreateVenueModal> {
     locationController.dispose();
     capacityController.dispose();
     priceController.dispose();
+    contactController.dispose();
     super.dispose();
   }
 
@@ -148,13 +185,13 @@ class _CreateVenueModalState extends State<_CreateVenueModal> {
             const SizedBox(height: 12),
             TextFormField(
               controller: nameController,
-              decoration: const InputDecoration(labelText: 'Venue Name'),
-              validator: (v) => v == null || v.trim().isEmpty ? 'Please enter venue name' : null,
+              decoration: const InputDecoration(labelText: 'Venue Name *'),
+              validator: (v) => v == null || v.trim().isEmpty ? 'Please enter name' : null,
             ),
             const SizedBox(height: 12),
             TextFormField(
               controller: locationController,
-              decoration: const InputDecoration(labelText: 'Location / Address'),
+              decoration: const InputDecoration(labelText: 'Location / Address *'),
               validator: (v) => v == null || v.trim().isEmpty ? 'Please enter location' : null,
             ),
             const SizedBox(height: 12),
@@ -165,7 +202,6 @@ class _CreateVenueModalState extends State<_CreateVenueModal> {
                     controller: capacityController,
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(labelText: 'Capacity (Guests)'),
-                    validator: (v) => v == null || v.trim().isEmpty ? 'Enter capacity' : null,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -173,11 +209,15 @@ class _CreateVenueModalState extends State<_CreateVenueModal> {
                   child: TextFormField(
                     controller: priceController,
                     keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: 'Rate / Day (₹)'),
-                    validator: (v) => v == null || v.trim().isEmpty ? 'Enter rate' : null,
+                    decoration: const InputDecoration(labelText: 'Price / Day (₹)'),
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: contactController,
+              decoration: const InputDecoration(labelText: 'Contact Person / Phone'),
             ),
             const SizedBox(height: 20),
             SizedBox(
@@ -190,9 +230,9 @@ class _CreateVenueModalState extends State<_CreateVenueModal> {
                       id: DateTime.now().millisecondsSinceEpoch.toString(),
                       name: nameController.text.trim(),
                       location: locationController.text.trim(),
-                      capacity: int.tryParse(capacityController.text.trim()) ?? 100,
+                      capacity: int.tryParse(capacityController.text.trim()) ?? 300,
                       pricePerDay: double.tryParse(priceController.text.trim()) ?? 50000,
-                      contactPerson: 'Manager',
+                      contactPerson: contactController.text.trim().isEmpty ? 'Manager' : contactController.text.trim(),
                     );
                     await AppDataRepository.instance.addVenue(venue);
                     if (context.mounted) Navigator.pop(context);
