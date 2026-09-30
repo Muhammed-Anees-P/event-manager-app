@@ -158,7 +158,7 @@ CREATE TABLE IF NOT EXISTS public.company_settings (
     id TEXT PRIMARY KEY DEFAULT 'default',
     company_name TEXT NOT NULL DEFAULT 'Haya Event Management',
     company_phone TEXT NOT NULL DEFAULT '+91 9747451938',
-    company_email TEXT NOT NULL DEFAULT 'admin@hayaevents.com',
+    company_email TEXT NOT NULL DEFAULT 'hayaeventmanagement.info@gmail.com',
     company_address TEXT NOT NULL DEFAULT 'Central Avenue, Tech Park, Mumbai',
     company_gstin TEXT NOT NULL DEFAULT '27ABCDE1234F1Z5',
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
@@ -192,7 +192,7 @@ ALTER TABLE public.user_profiles DISABLE ROW LEVEL SECURITY;
 
 -- SEED INITIAL COMPANY SETTINGS ROW
 INSERT INTO public.company_settings (id, company_name, company_phone, company_email, company_address, company_gstin)
-VALUES ('default', 'Haya Event Management', '+91 9747451938', 'admin@hayaevents.com', 'Central Avenue, Tech Park, Mumbai', '27ABCDE1234F1Z5')
+VALUES ('default', 'Haya Event Management', '+91 9747451938', 'hayaeventmanagement.info@gmail.com', 'Central Avenue, Tech Park, Mumbai', '27ABCDE1234F1Z5')
 ON CONFLICT (id) DO NOTHING;
 
 -- SEED 2 USERS (ANEES & MUBEEN)
