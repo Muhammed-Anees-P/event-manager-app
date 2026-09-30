@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 
 import 'screens/welcome_screen.dart';
+import 'services/supabase_service.dart';
 import 'theme/app_theme.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Supabase Client
+  await SupabaseService.instance.initialize();
 
   runApp(const HayaEventManagementApp());
 }

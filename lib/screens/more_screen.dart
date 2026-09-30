@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import '../data/app_data_repository.dart';
+import '../services/auth_session_service.dart';
 import '../theme/app_theme.dart';
-import 'welcome_screen.dart';
+import 'login_screen.dart';
 
 class MoreScreen extends StatelessWidget {
   final Function(int) onNavigateToTab;
@@ -12,6 +14,10 @@ class MoreScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final userName = AppDataRepository.instance.currentUserName;
+    final userEmail = AppDataRepository.instance.currentUserEmail;
+    final initial = userName.isNotEmpty ? userName.substring(0, 1).toUpperCase() : 'A';
+
     return Scaffold(
       backgroundColor: AppTheme.background,
       body: SingleChildScrollView(
@@ -29,20 +35,20 @@ class MoreScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: const Color(0xFFE5E7EB)),
                 ),
-                child: const Row(
+                child: Row(
                   children: [
                     CircleAvatar(
                       radius: 24,
                       backgroundColor: AppTheme.primary,
-                      child: Text('A', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                      child: Text(initial, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
                     ),
-                    SizedBox(width: 14),
+                    const SizedBox(width: 14),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Admin', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
-                        SizedBox(height: 2),
-                        Text('admin@hayaevents.com', style: TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+                        Text(userName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+                        const SizedBox(height: 2),
+                        Text(userEmail, style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
                       ],
                     ),
                   ],
@@ -147,12 +153,15 @@ class MoreScreen extends StatelessWidget {
                       context,
                       Icons.logout,
                       'Logout',
-                      () {
-                        Navigator.pushAndRemoveUntil(
-                          context,
-                          MaterialPageRoute(builder: (_) => const WelcomeScreen()),
-                          (route) => false,
-                        );
+                      () async {
+                        await AuthSessionService.instance.clearSession();
+                        if (context.mounted) {
+                          Navigator.pushAndRemoveUntil(
+                            context,
+                            MaterialPageRoute(builder: (_) => const LoginScreen()),
+                            (route) => false,
+                          );
+                        }
                       },
                       isDestructive: true,
                     ),

@@ -304,15 +304,21 @@ class _CreateEventModalState extends State<_CreateEventModal> {
   final _formKey = GlobalKey<FormState>();
   final titleController = TextEditingController();
   final venueController = TextEditingController();
+  final dateController = TextEditingController(text: '28 Sep 2026');
+  final timeController = TextEditingController(text: '5:00 PM - 11:00 PM');
   final guestsController = TextEditingController(text: '100');
   final contractController = TextEditingController(text: '250000');
   final receivedController = TextEditingController(text: '50000');
+
+  String selectedCustomer = 'Sneha Kapoor';
   EventStatus selectedStatus = EventStatus.planning;
 
   @override
   void dispose() {
     titleController.dispose();
     venueController.dispose();
+    dateController.dispose();
+    timeController.dispose();
     guestsController.dispose();
     contractController.dispose();
     receivedController.dispose();
@@ -321,6 +327,11 @@ class _CreateEventModalState extends State<_CreateEventModal> {
 
   @override
   Widget build(BuildContext context) {
+    final customers = AppDataRepository.instance.customers.map((c) => c.name).toList();
+    if (customers.isNotEmpty && !customers.contains(selectedCustomer)) {
+      selectedCustomer = customers.first;
+    }
+
     return Padding(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom + 20,
@@ -338,7 +349,7 @@ class _CreateEventModalState extends State<_CreateEventModal> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Create New Event', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const Text('Create / Schedule New Event', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   IconButton(
                     icon: const Icon(Icons.close),
                     onPressed: () => Navigator.pop(context),
@@ -346,16 +357,42 @@ class _CreateEventModalState extends State<_CreateEventModal> {
                 ],
               ),
               const SizedBox(height: 12),
+              if (customers.isNotEmpty)
+                DropdownButtonFormField<String>(
+                  value: selectedCustomer,
+                  decoration: const InputDecoration(labelText: 'Select Customer *'),
+                  items: customers.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+                  onChanged: (v) => setState(() => selectedCustomer = v!),
+                ),
+              const SizedBox(height: 12),
               TextFormField(
                 controller: titleController,
-                decoration: const InputDecoration(labelText: 'Event Title'),
+                decoration: const InputDecoration(labelText: 'Event Title *'),
                 validator: (v) => v == null || v.trim().isEmpty ? 'Please enter event title' : null,
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: venueController,
-                decoration: const InputDecoration(labelText: 'Venue Name'),
+                decoration: const InputDecoration(labelText: 'Venue Name & Address *'),
                 validator: (v) => v == null || v.trim().isEmpty ? 'Please enter venue' : null,
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: dateController,
+                      decoration: const InputDecoration(labelText: 'Future Event Date', prefixIcon: Icon(Icons.calendar_today, size: 18)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextFormField(
+                      controller: timeController,
+                      decoration: const InputDecoration(labelText: 'Timing', prefixIcon: Icon(Icons.access_time, size: 18)),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 12),
               Row(
@@ -412,11 +449,11 @@ class _CreateEventModalState extends State<_CreateEventModal> {
                         id: DateTime.now().millisecondsSinceEpoch.toString(),
                         code: 'EVT-2026-00${AppDataRepository.instance.events.length + 1}',
                         title: titleController.text.trim(),
-                        date: '28 Sep 2026',
-                        time: '5:00 PM - 10:00 PM',
+                        date: dateController.text.trim(),
+                        time: timeController.text.trim(),
                         venue: venueController.text.trim(),
                         guests: int.tryParse(guestsController.text.trim()) ?? 100,
-                        manager: 'Admin',
+                        manager: selectedCustomer,
                         status: selectedStatus,
                         contractValue: double.tryParse(contractController.text.trim()) ?? 0,
                         amountReceived: double.tryParse(receivedController.text.trim()) ?? 0,
@@ -426,7 +463,7 @@ class _CreateEventModalState extends State<_CreateEventModal> {
                     }
                   },
                   style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
-                  child: const Text('Save Event'),
+                  child: const Text('Schedule Event & Send Notification'),
                 ),
               ),
             ],

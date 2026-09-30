@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../data/app_data_repository.dart';
 import '../theme/app_theme.dart';
 
 class Sidebar extends StatelessWidget {
@@ -15,9 +16,12 @@ class Sidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final userName = AppDataRepository.instance.currentUserName;
+    final initial = userName.isNotEmpty ? userName.substring(0, 1).toUpperCase() : 'A';
+
     return Container(
       width: 240,
-      color: const Color(0xFF1E232A), // Dark dark grey matching image
+      color: const Color(0xFF1E232A),
       child: Column(
         children: [
           const SizedBox(height: 24),
@@ -130,28 +134,28 @@ class Sidebar extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                const CircleAvatar(
+                CircleAvatar(
                   radius: 18,
                   backgroundColor: AppTheme.primary,
                   child: Text(
-                    'A',
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    initial,
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                   ),
                 ),
                 const SizedBox(width: 12),
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Admin',
-                        style: TextStyle(
+                        userName,
+                        style: const TextStyle(
                           color: Colors.white,
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      Text(
+                      const Text(
                         'Administrator',
                         style: TextStyle(
                           color: Colors.white54,
