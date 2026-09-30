@@ -25,44 +25,76 @@ class AppDataRepository extends ChangeNotifier {
   // Active Logged-In User State
   String currentUserName = 'Anees';
   String currentUserEmail = 'anees@hayaevents.com';
+  String currentUserAvatar = 'avatar_1';
 
-  void setCurrentUser(String name, String email) {
+  void setCurrentUser(String name, String email, {String avatar = 'avatar_1'}) {
     currentUserName = name;
     currentUserEmail = email;
+    currentUserAvatar = avatar;
     notifyListeners();
   }
 
-  // Company Settings State
+  // Company Settings State (Live Dynamic Supabase API)
   String companyName = 'Haya Event Management';
   String companyPhone = '+91 9747451938';
   String companyEmail = 'admin@hayaevents.com';
   String companyAddress = 'Central Avenue, Tech Park, Mumbai';
   String companyGstin = '27ABCDE1234F1Z5';
 
-  void updateCompanySettings({
+  Future<void> updateCompanySettings({
     required String name,
     required String phone,
     required String email,
     required String address,
     required String gstin,
-  }) {
+  }) async {
     companyName = name;
     companyPhone = phone;
     companyEmail = email;
     companyAddress = address;
     companyGstin = gstin;
     notifyListeners();
+
+    final client = SupabaseService.instance.client;
+    if (client != null) {
+      try {
+        await client.from('company_settings').upsert({
+          'id': 'default',
+          'company_name': name,
+          'company_phone': phone,
+          'company_email': email,
+          'company_address': address,
+          'company_gstin': gstin,
+          'updated_at': DateTime.now().toIso8601String(),
+        }, onConflict: 'id');
+        if (kDebugMode) print('✅ Supabase company_settings upsert success!');
+      } catch (e) {
+        if (kDebugMode) print('❌ Supabase company_settings upsert error: $e');
+      }
+    }
   }
 
-  // System Users List
+  // System Users List (Anees & Mubeen only)
   List<SystemUserModel> systemUsers = [
-    SystemUserModel(id: '1', username: 'anees', email: 'anees@hayaevents.com', role: 'Admin'),
-    SystemUserModel(id: '2', username: 'mubeen', email: 'mubeen@hayaevents.com', role: 'Manager'),
+    SystemUserModel(id: '1', username: 'Anees', email: 'anees@hayaevents.com', role: 'Admin', avatarUrl: 'avatar_1'),
+    SystemUserModel(id: '2', username: 'Mubeen', email: 'mubeen@hayaevents.com', role: 'Manager', avatarUrl: 'avatar_2'),
   ];
 
-  void addSystemUser(SystemUserModel user) {
-    systemUsers.add(user);
-    notifyListeners();
+  void updateUserProfile(String id, {required String username, required String email, required String role, required String avatarUrl}) {
+    final idx = systemUsers.indexWhere((u) => u.id == id);
+    if (idx >= 0) {
+      systemUsers[idx].username = username;
+      systemUsers[idx].email = email;
+      systemUsers[idx].role = role;
+      systemUsers[idx].avatarUrl = avatarUrl;
+
+      if (id == '1' || username.toLowerCase() == currentUserName.toLowerCase()) {
+        currentUserName = username;
+        currentUserEmail = email;
+        currentUserAvatar = avatarUrl;
+      }
+      notifyListeners();
+    }
   }
 
   // App Notifications Center
@@ -77,7 +109,7 @@ class AppDataRepository extends ChangeNotifier {
     AppNotificationModel(
       id: '2',
       title: 'Payment Overdue Alert',
-      message: 'Invoice #INV-2026-001 has an outstanding balance of ₹1,58,000.',
+      message: 'Invoice #INV-2026-001 for Sneha Kapoor has an unpaid balance of ₹1,58,000.',
       date: '11 Sep 2026',
       type: NotificationType.paymentOverdue,
     ),
@@ -127,6 +159,21 @@ class AppDataRepository extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // 0. Fetch Company Settings
+      try {
+        final companyData = await client.from('company_settings').select().eq('id', 'default').maybeSingle();
+        if (companyData != null) {
+          companyName = companyData['company_name'] ?? companyName;
+          companyPhone = companyData['company_phone'] ?? companyPhone;
+          companyEmail = companyData['company_email'] ?? companyEmail;
+          companyAddress = companyData['company_address'] ?? companyAddress;
+          companyGstin = companyData['company_gstin'] ?? companyGstin;
+        }
+      } catch (e) {
+        if (kDebugMode) print('Supabase company_settings fetch error: $e');
+      }
+
+      // 1. Fetch Events
       final eventsData = await client.from('events').select().order('created_at', ascending: false);
       events = (eventsData as List).map((map) {
         return EventModel(
@@ -144,6 +191,7 @@ class AppDataRepository extends ChangeNotifier {
         );
       }).toList();
 
+      // 2. Fetch Tasks
       final tasksData = await client.from('tasks').select().order('created_at', ascending: false);
       tasks = (tasksData as List).map((map) {
         return TaskModel(
@@ -156,6 +204,7 @@ class AppDataRepository extends ChangeNotifier {
         );
       }).toList();
 
+      // 3. Fetch Enquiries
       final enquiriesData = await client.from('enquiries').select().order('created_at', ascending: false);
       enquiries = (enquiriesData as List).map((map) {
         return EnquiryModel(
@@ -168,6 +217,7 @@ class AppDataRepository extends ChangeNotifier {
         );
       }).toList();
 
+      // 4. Fetch Customers
       final customersData = await client.from('customers').select().order('created_at', ascending: false);
       customers = (customersData as List).map((map) {
         return CustomerModel(
@@ -179,6 +229,7 @@ class AppDataRepository extends ChangeNotifier {
         );
       }).toList();
 
+      // 5. Fetch Payments
       final paymentsData = await client.from('payments').select().order('created_at', ascending: false);
       payments = (paymentsData as List).map((map) {
         return PaymentModel(
@@ -190,6 +241,7 @@ class AppDataRepository extends ChangeNotifier {
         );
       }).toList();
 
+      // 6. Fetch Quotations
       final quotationsData = await client.from('quotations').select().order('created_at', ascending: false);
       quotations = (quotationsData as List).map((map) {
         return QuotationModel(
@@ -203,6 +255,7 @@ class AppDataRepository extends ChangeNotifier {
         );
       }).toList();
 
+      // 7. Fetch Expenses
       final expensesData = await client.from('expenses').select().order('created_at', ascending: false);
       expenses = (expensesData as List).map((map) {
         return ExpenseModel(
@@ -215,6 +268,7 @@ class AppDataRepository extends ChangeNotifier {
         );
       }).toList();
 
+      // 8. Fetch Vendors
       final vendorsData = await client.from('vendors').select().order('created_at', ascending: false);
       vendors = (vendorsData as List).map((map) {
         return VendorModel(
@@ -227,6 +281,7 @@ class AppDataRepository extends ChangeNotifier {
         );
       }).toList();
 
+      // 9. Fetch Venues
       final venuesData = await client.from('venues').select().order('created_at', ascending: false);
       venues = (venuesData as List).map((map) {
         return VenueModel(
@@ -239,6 +294,7 @@ class AppDataRepository extends ChangeNotifier {
         );
       }).toList();
 
+      // 10. Fetch Inventory
       final inventoryData = await client.from('inventory').select().order('created_at', ascending: false);
       inventory = (inventoryData as List).map((map) {
         return InventoryModel(
@@ -250,6 +306,7 @@ class AppDataRepository extends ChangeNotifier {
         );
       }).toList();
 
+      // 11. Fetch Invoices with Relational Sections & Items
       final invoicesData = await client.from('invoices').select('*, invoice_sections(*, invoice_items(*))').order('created_at', ascending: false);
       invoices = (invoicesData as List).map((invMap) {
         final rawSections = invMap['invoice_sections'] as List? ?? [];
@@ -318,7 +375,6 @@ class AppDataRepository extends ChangeNotifier {
   Future<void> addEvent(EventModel item) async {
     events.insert(0, item);
 
-    // Auto notification
     addNotification(
       AppNotificationModel(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -334,7 +390,7 @@ class AppDataRepository extends ChangeNotifier {
     final client = SupabaseService.instance.client;
     if (client != null) {
       try {
-        await client.from('events').insert({
+        final res = await client.from('events').insert({
           'code': item.code,
           'title': item.title,
           'date': item.date,
@@ -345,9 +401,10 @@ class AppDataRepository extends ChangeNotifier {
           'status': item.status.name,
           'contract_value': item.contractValue,
           'amount_received': item.amountReceived,
-        });
+        }).select();
+        if (kDebugMode) print('✅ Supabase addEvent Success: $res');
       } catch (e) {
-        if (kDebugMode) print('Supabase addEvent Error: $e');
+        if (kDebugMode) print('❌ Supabase addEvent Error: $e');
       }
     }
   }
@@ -359,15 +416,16 @@ class AppDataRepository extends ChangeNotifier {
     final client = SupabaseService.instance.client;
     if (client != null) {
       try {
-        await client.from('tasks').insert({
+        final res = await client.from('tasks').insert({
           'title': item.title,
           'event_title': item.eventTitle,
           'priority': item.priority.name,
           'is_completed': item.isCompleted,
           'category': item.category,
-        });
+        }).select();
+        if (kDebugMode) print('✅ Supabase addTask Success: $res');
       } catch (e) {
-        if (kDebugMode) print('Supabase addTask Error: $e');
+        if (kDebugMode) print('❌ Supabase addTask Error: $e');
       }
     }
   }
@@ -379,15 +437,16 @@ class AppDataRepository extends ChangeNotifier {
     final client = SupabaseService.instance.client;
     if (client != null) {
       try {
-        await client.from('enquiries').insert({
+        final res = await client.from('enquiries').insert({
           'name': item.name,
           'type': item.type,
           'total_date': item.totalDate,
           'amount': item.amount,
           'status': item.status.name,
-        });
+        }).select();
+        if (kDebugMode) print('✅ Supabase addEnquiry Success: $res');
       } catch (e) {
-        if (kDebugMode) print('Supabase addEnquiry Error: $e');
+        if (kDebugMode) print('❌ Supabase addEnquiry Error: $e');
       }
     }
   }
@@ -399,14 +458,15 @@ class AppDataRepository extends ChangeNotifier {
     final client = SupabaseService.instance.client;
     if (client != null) {
       try {
-        await client.from('customers').insert({
+        final res = await client.from('customers').insert({
           'name': item.name,
           'email': item.email,
           'phone': item.phone,
           'total_events': item.totalEvents,
-        });
+        }).select();
+        if (kDebugMode) print('✅ Supabase addCustomer Success: $res');
       } catch (e) {
-        if (kDebugMode) print('Supabase addCustomer Error: $e');
+        if (kDebugMode) print('❌ Supabase addCustomer Error: $e');
       }
     }
   }
@@ -418,14 +478,15 @@ class AppDataRepository extends ChangeNotifier {
     final client = SupabaseService.instance.client;
     if (client != null) {
       try {
-        await client.from('payments').insert({
+        final res = await client.from('payments').insert({
           'date': item.date,
           'event_type': item.eventType,
           'amount': item.amount,
           'method': item.method,
-        });
+        }).select();
+        if (kDebugMode) print('✅ Supabase addPayment Success: $res');
       } catch (e) {
-        if (kDebugMode) print('Supabase addPayment Error: $e');
+        if (kDebugMode) print('❌ Supabase addPayment Error: $e');
       }
     }
   }
@@ -437,16 +498,17 @@ class AppDataRepository extends ChangeNotifier {
     final client = SupabaseService.instance.client;
     if (client != null) {
       try {
-        await client.from('quotations').insert({
+        final res = await client.from('quotations').insert({
           'quote_number': item.quoteNumber,
           'customer_name': item.customerName,
           'event_type': item.eventType,
           'date': item.date,
           'total_amount': item.totalAmount,
           'status': item.status,
-        });
+        }).select();
+        if (kDebugMode) print('✅ Supabase addQuotation Success: $res');
       } catch (e) {
-        if (kDebugMode) print('Supabase addQuotation Error: $e');
+        if (kDebugMode) print('❌ Supabase addQuotation Error: $e');
       }
     }
   }
@@ -458,15 +520,16 @@ class AppDataRepository extends ChangeNotifier {
     final client = SupabaseService.instance.client;
     if (client != null) {
       try {
-        await client.from('expenses').insert({
+        final res = await client.from('expenses').insert({
           'title': item.title,
           'category': item.category,
           'amount': item.amount,
           'date': item.date,
           'payment_method': item.paymentMethod,
-        });
+        }).select();
+        if (kDebugMode) print('✅ Supabase addExpense Success: $res');
       } catch (e) {
-        if (kDebugMode) print('Supabase addExpense Error: $e');
+        if (kDebugMode) print('❌ Supabase addExpense Error: $e');
       }
     }
   }
@@ -478,15 +541,16 @@ class AppDataRepository extends ChangeNotifier {
     final client = SupabaseService.instance.client;
     if (client != null) {
       try {
-        await client.from('vendors').insert({
+        final res = await client.from('vendors').insert({
           'name': item.name,
           'category': item.category,
           'phone': item.phone,
           'email': item.email,
           'rating': item.rating,
-        });
+        }).select();
+        if (kDebugMode) print('✅ Supabase addVendor Success: $res');
       } catch (e) {
-        if (kDebugMode) print('Supabase addVendor Error: $e');
+        if (kDebugMode) print('❌ Supabase addVendor Error: $e');
       }
     }
   }
@@ -498,15 +562,16 @@ class AppDataRepository extends ChangeNotifier {
     final client = SupabaseService.instance.client;
     if (client != null) {
       try {
-        await client.from('venues').insert({
+        final res = await client.from('venues').insert({
           'name': item.name,
           'location': item.location,
           'capacity': item.capacity,
           'price_per_day': item.pricePerDay,
           'contact_person': item.contactPerson,
-        });
+        }).select();
+        if (kDebugMode) print('✅ Supabase addVenue Success: $res');
       } catch (e) {
-        if (kDebugMode) print('Supabase addVenue Error: $e');
+        if (kDebugMode) print('❌ Supabase addVenue Error: $e');
       }
     }
   }
@@ -518,14 +583,15 @@ class AppDataRepository extends ChangeNotifier {
     final client = SupabaseService.instance.client;
     if (client != null) {
       try {
-        await client.from('inventory').insert({
+        final res = await client.from('inventory').insert({
           'item_name': item.itemName,
           'category': item.category,
           'quantity': item.quantity,
           'rental_price': item.rentalPrice,
-        });
+        }).select();
+        if (kDebugMode) print('✅ Supabase addInventory Success: $res');
       } catch (e) {
-        if (kDebugMode) print('Supabase addInventory Error: $e');
+        if (kDebugMode) print('❌ Supabase addInventory Error: $e');
       }
     }
   }
@@ -591,8 +657,9 @@ class AppDataRepository extends ChangeNotifier {
             });
           }
         }
+        if (kDebugMode) print('✅ Supabase saveInvoice Success!');
       } catch (e) {
-        if (kDebugMode) print('Supabase saveInvoice Error: $e');
+        if (kDebugMode) print('❌ Supabase saveInvoice Error: $e');
       }
     }
   }
@@ -605,8 +672,9 @@ class AppDataRepository extends ChangeNotifier {
     if (client != null) {
       try {
         await client.from('invoices').delete().eq('invoice_number', invoiceNumber);
+        if (kDebugMode) print('✅ Supabase deleteInvoice Success!');
       } catch (e) {
-        if (kDebugMode) print('Supabase deleteInvoice Error: $e');
+        if (kDebugMode) print('❌ Supabase deleteInvoice Error: $e');
       }
     }
   }
