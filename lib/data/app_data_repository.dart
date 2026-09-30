@@ -37,7 +37,7 @@ class AppDataRepository extends ChangeNotifier {
   // Company Settings State (Live Dynamic Supabase API)
   String companyName = 'Haya Event Management';
   String companyPhone = '+91 9747451938';
-  String companyEmail = 'admin@hayaevents.com';
+  String companyEmail = 'hayaeventmanagement.info@gmail.com';
   String companyAddress = 'Central Avenue, Tech Park, Mumbai';
   String companyGstin = '27ABCDE1234F1Z5';
 
@@ -97,23 +97,8 @@ class AppDataRepository extends ChangeNotifier {
     }
   }
 
-  // App Notifications Center
-  List<AppNotificationModel> notifications = [
-    AppNotificationModel(
-      id: '1',
-      title: 'Upcoming Event Reminder',
-      message: 'Wedding - Rahul & Priya is scheduled for 18 Sep 2026 at The Grand Palace.',
-      date: '12 Sep 2026',
-      type: NotificationType.eventReminder,
-    ),
-    AppNotificationModel(
-      id: '2',
-      title: 'Payment Overdue Alert',
-      message: 'Invoice #INV-2026-001 for Sneha Kapoor has an unpaid balance of ₹1,58,000.',
-      date: '11 Sep 2026',
-      type: NotificationType.paymentOverdue,
-    ),
-  ];
+  // App Notifications Center (Starts empty, no pre-seeded notifications)
+  List<AppNotificationModel> notifications = [];
 
   int get unreadNotificationsCount => notifications.where((n) => !n.isRead).length;
 
@@ -248,9 +233,18 @@ class AppDataRepository extends ChangeNotifier {
           id: map['id'].toString(),
           quoteNumber: map['quote_number'] ?? '',
           customerName: map['customer_name'] ?? '',
-          eventType: map['event_type'] ?? '',
-          date: map['date'] ?? '',
-          totalAmount: (map['total_amount'] as num?)?.toDouble() ?? 0.0,
+          venue: map['venue'] ?? '',
+          quotationDate: map['date'] ?? '12 Sep 2026',
+          dueDate: map['due_date'] ?? '25 Sep 2026',
+          eventType: map['event_type'] ?? 'Wedding',
+          sections: [
+            InvoiceSection(
+              heading: map['event_type'] ?? 'Quotation Package',
+              items: [
+                InvoiceItem(name: 'Quotation Amount', price: (map['total_amount'] as num?)?.toDouble() ?? 0.0),
+              ],
+            ),
+          ],
           status: map['status'] ?? 'Sent',
         );
       }).toList();
@@ -409,6 +403,42 @@ class AppDataRepository extends ChangeNotifier {
     }
   }
 
+  Future<void> updateEvent(EventModel item) async {
+    final idx = events.indexWhere((e) => e.id == item.id);
+    if (idx >= 0) {
+      events[idx] = item;
+      notifyListeners();
+      final client = SupabaseService.instance.client;
+      if (client != null) {
+        try {
+          await client.from('events').update({
+            'title': item.title,
+            'date': item.date,
+            'venue': item.venue,
+            'status': item.status.name,
+            'contract_value': item.contractValue,
+            'amount_received': item.amountReceived,
+          }).eq('code', item.code);
+        } catch (e) {
+          if (kDebugMode) print('Supabase updateEvent error: $e');
+        }
+      }
+    }
+  }
+
+  Future<void> deleteEvent(String id) async {
+    events.removeWhere((e) => e.id == id);
+    notifyListeners();
+    final client = SupabaseService.instance.client;
+    if (client != null) {
+      try {
+        await client.from('events').delete().eq('id', id);
+      } catch (e) {
+        if (kDebugMode) print('Supabase deleteEvent error: $e');
+      }
+    }
+  }
+
   Future<void> addTask(TaskModel item) async {
     tasks.insert(0, item);
     notifyListeners();
@@ -492,21 +522,28 @@ class AppDataRepository extends ChangeNotifier {
   }
 
   Future<void> addQuotation(QuotationModel item) async {
-    quotations.insert(0, item);
+    final index = quotations.indexWhere((q) => q.id == item.id);
+    if (index >= 0) {
+      quotations[index] = item;
+    } else {
+      quotations.insert(0, item);
+    }
     notifyListeners();
 
     final client = SupabaseService.instance.client;
     if (client != null) {
       try {
-        final res = await client.from('quotations').insert({
+        await client.from('quotations').upsert({
           'quote_number': item.quoteNumber,
           'customer_name': item.customerName,
           'event_type': item.eventType,
-          'date': item.date,
-          'total_amount': item.totalAmount,
+          'venue': item.venue,
+          'date': item.quotationDate,
+          'due_date': item.dueDate,
+          'total_amount': item.grandTotal,
           'status': item.status,
-        }).select();
-        if (kDebugMode) print('✅ Supabase addQuotation Success: $res');
+        }, onConflict: 'quote_number');
+        if (kDebugMode) print('✅ Supabase addQuotation Success');
       } catch (e) {
         if (kDebugMode) print('❌ Supabase addQuotation Error: $e');
       }
@@ -677,5 +714,83 @@ class AppDataRepository extends ChangeNotifier {
         if (kDebugMode) print('❌ Supabase deleteInvoice Error: $e');
       }
     }
+  }
+
+  Future<void> updateQuotation(QuotationModel item) async {
+    final idx = quotations.indexWhere((q) => q.id == item.id);
+    if (idx >= 0) {
+      quotations[idx] = item;
+      notifyListeners();
+    }
+  }
+
+  Future<void> deleteQuotation(String id) async {
+    quotations.removeWhere((q) => q.id == id);
+    notifyListeners();
+  }
+
+  Future<void> updateEnquiry(EnquiryModel item) async {
+    final idx = enquiries.indexWhere((e) => e.id == item.id);
+    if (idx >= 0) {
+      enquiries[idx] = item;
+      notifyListeners();
+    }
+  }
+
+  Future<void> deleteEnquiry(String id) async {
+    enquiries.removeWhere((e) => e.id == id);
+    notifyListeners();
+  }
+
+  Future<void> updateVendor(VendorModel item) async {
+    final idx = vendors.indexWhere((v) => v.id == item.id);
+    if (idx >= 0) {
+      vendors[idx] = item;
+      notifyListeners();
+    }
+  }
+
+  Future<void> deleteVendor(String id) async {
+    vendors.removeWhere((v) => v.id == id);
+    notifyListeners();
+  }
+
+  Future<void> updateVenue(VenueModel item) async {
+    final idx = venues.indexWhere((v) => v.id == item.id);
+    if (idx >= 0) {
+      venues[idx] = item;
+      notifyListeners();
+    }
+  }
+
+  Future<void> deleteVenue(String id) async {
+    venues.removeWhere((v) => v.id == id);
+    notifyListeners();
+  }
+
+  Future<void> updateInventory(InventoryModel item) async {
+    final idx = inventory.indexWhere((i) => i.id == item.id);
+    if (idx >= 0) {
+      inventory[idx] = item;
+      notifyListeners();
+    }
+  }
+
+  Future<void> deleteInventory(String id) async {
+    inventory.removeWhere((i) => i.id == id);
+    notifyListeners();
+  }
+
+  Future<void> updatePayment(PaymentModel item) async {
+    final idx = payments.indexWhere((p) => p.id == item.id);
+    if (idx >= 0) {
+      payments[idx] = item;
+      notifyListeners();
+    }
+  }
+
+  Future<void> deletePayment(String id) async {
+    payments.removeWhere((p) => p.id == id);
+    notifyListeners();
   }
 }
