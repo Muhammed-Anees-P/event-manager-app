@@ -28,8 +28,9 @@ class EventModel {
   final double contractValue;
   final double amountReceived;
   final String? imageUrl;
+  final List<String> services;
 
-  const EventModel({
+  EventModel({
     required this.id,
     required this.code,
     required this.title,
@@ -42,7 +43,8 @@ class EventModel {
     required this.contractValue,
     required this.amountReceived,
     this.imageUrl,
-  });
+    List<String>? services,
+  }) : services = services ?? [];
 
   double get outstanding => contractValue - amountReceived;
   double get paymentProgress => contractValue > 0 ? (amountReceived / contractValue) : 0;
