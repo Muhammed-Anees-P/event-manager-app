@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../data/app_data_repository.dart';
 import '../models/customer_model.dart';
 import '../theme/app_theme.dart';
+import '../widgets/charts/revenue_chart.dart';
 
 class CustomersScreen extends StatefulWidget {
   const CustomersScreen({super.key});
@@ -53,43 +54,54 @@ class _CustomersScreenState extends State<CustomersScreen> {
               itemCount: customers.length,
               itemBuilder: (context, index) {
                 final c = customers[index];
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFFE5E7EB)),
-                  ),
-                  child: Row(
-                    children: [
-                      CircleAvatar(
-                        backgroundColor: AppTheme.primary,
-                        child: Text(
-                          c.name.isNotEmpty ? c.name.substring(0, 1) : 'C',
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                        ),
+                return InkWell(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => CustomerDetailScreen(customer: c),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(c.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
-                            const SizedBox(height: 2),
-                            Text('${c.email} • ${c.phone}', style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
-                          ],
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFE5E7EB)),
+                    ),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          backgroundColor: AppTheme.primary,
+                          child: Text(
+                            c.name.isNotEmpty ? c.name.substring(0, 1) : 'C',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                          ),
                         ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF3F4F6),
-                          borderRadius: BorderRadius.circular(12),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(c.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+                              const SizedBox(height: 2),
+                              Text('${c.email} • ${c.phone}', style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+                            ],
+                          ),
                         ),
-                        child: Text('${c.totalEvents} Events', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF4B5563))),
-                      ),
-                    ],
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF3F4F6),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text('View History', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppTheme.primary)),
+                        ),
+                      ],
+                    ),
                   ),
                 );
               },
@@ -98,6 +110,143 @@ class _CustomersScreenState extends State<CustomersScreen> {
         onPressed: () => CustomersScreen.showCreateDialog(context),
         backgroundColor: AppTheme.primary,
         child: const Icon(Icons.add, color: Colors.white),
+      ),
+    );
+  }
+}
+
+class CustomerDetailScreen extends StatelessWidget {
+  final CustomerModel customer;
+  const CustomerDetailScreen({super.key, required this.customer});
+
+  @override
+  Widget build(BuildContext context) {
+    final repository = AppDataRepository.instance;
+    final customerEvents = repository.events.where((e) => e.manager.toLowerCase().contains(customer.name.toLowerCase())).toList();
+    final customerInvoices = repository.invoices.where((i) => i.customerName.toLowerCase().contains(customer.name.toLowerCase())).toList();
+    final customerPayments = repository.payments.where((p) => p.eventType.toLowerCase().contains(customer.name.toLowerCase())).toList();
+
+    return Scaffold(
+      backgroundColor: AppTheme.background,
+      appBar: AppBar(
+        title: Text(customer.name, style: const TextStyle(color: Color(0xFF1F2937), fontSize: 18, fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.white,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Color(0xFF1F2937)),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+              ),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 28,
+                    backgroundColor: AppTheme.primary,
+                    child: Text(customer.name.isNotEmpty ? customer.name.substring(0, 1) : 'C', style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(customer.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+                        const SizedBox(height: 4),
+                        Text('Email: ${customer.email.isEmpty ? "N/A" : customer.email}', style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
+                        Text('Phone: ${customer.phone}', style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            const RevenueChart(),
+            const SizedBox(height: 20),
+            const Text('Events History', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+            const SizedBox(height: 10),
+            customerEvents.isEmpty
+                ? const Text('No events recorded for this customer.', style: TextStyle(color: Color(0xFF6B7280), fontSize: 13))
+                : Column(
+                    children: customerEvents.map((e) => Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFE5E7EB))),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(e.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                  Text('Venue: ${e.venue} • Date: ${e.date}', style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
+                                ],
+                              ),
+                              Text('₹${e.contractValue.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primaryDark)),
+                            ],
+                          ),
+                        )).toList(),
+                  ),
+            const SizedBox(height: 20),
+            const Text('Invoices History', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+            const SizedBox(height: 10),
+            customerInvoices.isEmpty
+                ? const Text('No invoices recorded for this customer.', style: TextStyle(color: Color(0xFF6B7280), fontSize: 13))
+                : Column(
+                    children: customerInvoices.map((i) => Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFE5E7EB))),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Invoice #${i.invoiceNumber}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                  Text('Due: ${i.dueDate}', style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
+                                ],
+                              ),
+                              Text('₹${i.grandTotal.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF10B981))),
+                            ],
+                          ),
+                        )).toList(),
+                  ),
+            const SizedBox(height: 20),
+            const Text('Payments History', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+            const SizedBox(height: 10),
+            customerPayments.isEmpty
+                ? const Text('No payments recorded for this customer.', style: TextStyle(color: Color(0xFF6B7280), fontSize: 13))
+                : Column(
+                    children: customerPayments.map((p) => Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFE5E7EB))),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(p.eventType, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                  Text('Date: ${p.date} • Method: ${p.method}', style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
+                                ],
+                              ),
+                              Text('+₹${p.amount.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF10B981))),
+                            ],
+                          ),
+                        )).toList(),
+                  ),
+          ],
+        ),
       ),
     );
   }
