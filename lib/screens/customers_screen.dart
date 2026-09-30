@@ -158,8 +158,7 @@ class _CreateCustomerModalState extends State<_CreateCustomerModal> {
             const SizedBox(height: 12),
             TextFormField(
               controller: emailController,
-              decoration: const InputDecoration(labelText: 'Email Address'),
-              validator: (v) => v == null || v.trim().isEmpty ? 'Please enter email' : null,
+              decoration: const InputDecoration(labelText: 'Email Address (Optional)'),
             ),
             const SizedBox(height: 12),
             TextFormField(
