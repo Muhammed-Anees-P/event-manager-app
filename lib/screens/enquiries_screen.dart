@@ -40,6 +40,37 @@ class _EnquiriesScreenState extends State<EnquiriesScreen> {
     if (mounted) setState(() {});
   }
 
+  void _showEnquiryDetail(BuildContext context, EnquiryModel e) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Enquiry: ${e.name}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Type: ${e.type}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            const SizedBox(height: 6),
+            Text('Date/Period: ${e.totalDate}', style: const TextStyle(color: Color(0xFF4B5563))),
+            Text('Budget/Amount: ₹${e.amount.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primaryDark, fontSize: 16)),
+            Text('Status: ${e.status.displayName}', style: const TextStyle(color: Color(0xFF10B981), fontWeight: FontWeight.bold)),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+          IconButton(
+            onPressed: () async {
+              await repository.deleteEnquiry(e.id);
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
+            icon: const Icon(Icons.delete_outline, color: Colors.red),
+            tooltip: 'Delete Enquiry',
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final enquiries = repository.enquiries;
@@ -53,43 +84,47 @@ class _EnquiriesScreenState extends State<EnquiriesScreen> {
               itemCount: enquiries.length,
               itemBuilder: (context, index) {
                 final enquiry = enquiries[index];
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFFE5E7EB)),
-                  ),
-                  child: Row(
-                    children: [
-                      CircleAvatar(
-                        backgroundColor: AppTheme.primary.withValues(alpha: 0.1),
-                        child: Text(
-                          enquiry.name.isNotEmpty ? enquiry.name.substring(0, 1) : 'E',
-                          style: const TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold),
+                return InkWell(
+                  onTap: () => _showEnquiryDetail(context, enquiry),
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFE5E7EB)),
+                    ),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          backgroundColor: AppTheme.primary.withValues(alpha: 0.1),
+                          child: Text(
+                            enquiry.name.isNotEmpty ? enquiry.name.substring(0, 1) : 'E',
+                            style: const TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold),
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(enquiry.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+                              const SizedBox(height: 2),
+                              Text('${enquiry.type} • ${enquiry.totalDate}', style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+                            ],
+                          ),
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            Text(enquiry.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
-                            const SizedBox(height: 2),
-                            Text('${enquiry.type} • ${enquiry.totalDate}', style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+                            Text('₹${enquiry.amount.toStringAsFixed(0)}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+                            const SizedBox(height: 4),
+                            _buildEnquiryBadge(enquiry.status),
                           ],
                         ),
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text('₹${enquiry.amount.toStringAsFixed(0)}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
-                          const SizedBox(height: 4),
-                          _buildEnquiryBadge(enquiry.status),
-                        ],
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 );
               },
@@ -173,7 +208,7 @@ class _CreateEnquiryModalState extends State<_CreateEnquiryModal> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('New Enquiry', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const Text('Add Enquiry', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 IconButton(
                   icon: const Icon(Icons.close),
                   onPressed: () => Navigator.pop(context),
@@ -183,8 +218,8 @@ class _CreateEnquiryModalState extends State<_CreateEnquiryModal> {
             const SizedBox(height: 12),
             TextFormField(
               controller: nameController,
-              decoration: const InputDecoration(labelText: 'Client / Contact Name'),
-              validator: (v) => v == null || v.trim().isEmpty ? 'Please enter a name' : null,
+              decoration: const InputDecoration(labelText: 'Client Name *'),
+              validator: (v) => v == null || v.trim().isEmpty ? 'Please enter name' : null,
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
@@ -199,17 +234,8 @@ class _CreateEnquiryModalState extends State<_CreateEnquiryModal> {
             TextFormField(
               controller: amountController,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Estimated Budget (₹)'),
-              validator: (v) => v == null || v.trim().isEmpty ? 'Please enter budget' : null,
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<EnquiryStatus>(
-              value: selectedStatus,
-              decoration: const InputDecoration(labelText: 'Status'),
-              items: EnquiryStatus.values
-                  .map((s) => DropdownMenuItem(value: s, child: Text(s.displayName)))
-                  .toList(),
-              onChanged: (v) => setState(() => selectedStatus = v!),
+              decoration: const InputDecoration(labelText: 'Estimated Budget (₹) *'),
+              validator: (v) => v == null || v.trim().isEmpty ? 'Please enter amount' : null,
             ),
             const SizedBox(height: 20),
             SizedBox(
@@ -222,7 +248,7 @@ class _CreateEnquiryModalState extends State<_CreateEnquiryModal> {
                       id: DateTime.now().millisecondsSinceEpoch.toString(),
                       name: nameController.text.trim(),
                       type: selectedType,
-                      totalDate: '12 Sep 2026',
+                      totalDate: '18 Sep 2026',
                       amount: double.tryParse(amountController.text.trim()) ?? 0,
                       status: selectedStatus,
                     );
