@@ -335,7 +335,7 @@ class _LoginScreenState extends State<LoginScreen> {
             controller: _emailController,
             textInputAction: TextInputAction.next,
             decoration: const InputDecoration(
-              hintText: 'Enter username (anees or mubeen)',
+              hintText: 'Enter username',
               prefixIcon: Icon(Icons.person_outline, size: 20),
             ),
             validator: (value) {
