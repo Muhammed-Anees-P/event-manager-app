@@ -1,22 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../data/app_data_repository.dart';
-import '../models/quotation_model.dart';
 import '../models/invoice_model.dart';
-import '../models/customer_model.dart';
+import '../models/quotation_model.dart';
 import '../services/quotation_pdf_service.dart';
 import '../theme/app_theme.dart';
-import 'create_invoice_screen.dart';
 
 class CreateQuotationScreen extends StatefulWidget {
   final VoidCallback? onBack;
-  final QuotationModel? initialQuotation;
 
   const CreateQuotationScreen({
     super.key,
     this.onBack,
-    this.initialQuotation,
   });
 
   @override
@@ -24,7 +19,7 @@ class CreateQuotationScreen extends StatefulWidget {
 }
 
 class _CreateQuotationScreenState extends State<CreateQuotationScreen> {
-  int _mainTab = 0; // 0 = All Quotations, 1 = Quotation Form & Template Customization
+  int _mainTab = 0; // 0 = All Quotations, 1 = Form Builder & Customizer
   int _formSubTab = 0; // 0 = Edit Form, 1 = Template Preview
 
   final repository = AppDataRepository.instance;
@@ -32,16 +27,8 @@ class _CreateQuotationScreenState extends State<CreateQuotationScreen> {
   final TextEditingController _customerController = TextEditingController();
   final TextEditingController _venueController = TextEditingController();
   final TextEditingController _quotationDateController = TextEditingController();
-  final TextEditingController _dueDateController = TextEditingController();
   final TextEditingController _quoteNumberController = TextEditingController();
-
-  final TextEditingController _discountController = TextEditingController();
-  final TextEditingController _taxController = TextEditingController();
-  final TextEditingController _advanceController = TextEditingController();
-
-  bool _showDiscount = false;
-  bool _showTax = true;
-  bool _showAdvancePaid = false;
+  final TextEditingController _eventTypeController = TextEditingController();
 
   late List<InvoiceSection> _sections;
 
@@ -49,11 +36,7 @@ class _CreateQuotationScreenState extends State<CreateQuotationScreen> {
   void initState() {
     super.initState();
     repository.addListener(_onDataChanged);
-    if (widget.initialQuotation != null) {
-      _loadQuotationForEdit(widget.initialQuotation!);
-    } else {
-      _resetFormToNew();
-    }
+    _resetFormToNew();
   }
 
   @override
@@ -62,11 +45,8 @@ class _CreateQuotationScreenState extends State<CreateQuotationScreen> {
     _customerController.dispose();
     _venueController.dispose();
     _quotationDateController.dispose();
-    _dueDateController.dispose();
     _quoteNumberController.dispose();
-    _discountController.dispose();
-    _taxController.dispose();
-    _advanceController.dispose();
+    _eventTypeController.dispose();
     super.dispose();
   }
 
@@ -74,46 +54,37 @@ class _CreateQuotationScreenState extends State<CreateQuotationScreen> {
     if (mounted) setState(() {});
   }
 
-  String _getTodayFormatted() {
-    final now = DateTime.now();
-    const months = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return '${now.day} ${months[now.month]} ${now.year}';
-  }
-
   void _resetFormToNew() {
-    final customers = repository.customers;
-    _customerController.text = customers.isNotEmpty ? customers.first.name : '';
+    _customerController.text = '';
     _venueController.text = '';
-    _quotationDateController.text = _getTodayFormatted();
-    _dueDateController.text = _getTodayFormatted();
+    _quotationDateController.text = '12 Sep 2026';
     _quoteNumberController.text = 'QT-2026-00${repository.quotations.length + 1}';
-    _discountController.text = '0';
-    _taxController.text = '18';
-    _advanceController.text = '0';
+    _eventTypeController.text = 'Wedding Event';
 
-    _showDiscount = false;
-    _showTax = true;
-    _showAdvancePaid = false;
-    _sections = [];
+    _sections = [
+      InvoiceSection(
+        heading: 'Catering & Refreshments',
+        items: [
+          InvoiceItem(name: 'Buffet Spread', qty: 250, rate: 1200, price: 300000),
+        ],
+      ),
+      InvoiceSection(
+        heading: 'Decor & Services',
+        items: [
+          InvoiceItem(name: 'Floral Entrance Setup', price: 50000),
+        ],
+      ),
+    ];
   }
 
-  void _loadQuotationForEdit(QuotationModel q) {
-    _customerController.text = q.customerName;
-    _venueController.text = q.venue;
-    _quotationDateController.text = q.quotationDate;
-    _dueDateController.text = q.dueDate;
-    _quoteNumberController.text = q.quoteNumber;
+  void _loadQuotationForEdit(QuotationModel quotation) {
+    _customerController.text = quotation.customerName;
+    _venueController.text = quotation.venue;
+    _quotationDateController.text = quotation.quotationDate;
+    _quoteNumberController.text = quotation.quoteNumber;
+    _eventTypeController.text = quotation.eventType;
 
-    _showDiscount = q.showDiscount;
-    _discountController.text = q.discountAmount.toStringAsFixed(0);
-
-    _showTax = q.showTax;
-    _taxController.text = q.taxPercentage.toStringAsFixed(0);
-
-    _showAdvancePaid = q.showAdvancePaid;
-    _advanceController.text = q.advancePaid.toStringAsFixed(0);
-
-    _sections = q.sections
+    _sections = quotation.sections
         .map((s) => InvoiceSection(
               heading: s.heading,
               items: s.items
@@ -135,19 +106,16 @@ class _CreateQuotationScreenState extends State<CreateQuotationScreen> {
 
   QuotationModel _buildCurrentQuotation() {
     return QuotationModel(
-      id: widget.initialQuotation?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
-      quoteNumber: _quoteNumberController.text.trim().isEmpty ? 'QT-2026-001' : _quoteNumberController.text.trim(),
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      quoteNumber: _quoteNumberController.text.trim().isEmpty
+          ? 'QT-2026-001'
+          : _quoteNumberController.text.trim(),
       customerName: _customerController.text.trim(),
       venue: _venueController.text.trim(),
       quotationDate: _quotationDateController.text.trim(),
-      dueDate: _dueDateController.text.trim(),
+      dueDate: '25 Sep 2026',
+      eventType: _eventTypeController.text.trim(),
       sections: _sections,
-      showDiscount: _showDiscount,
-      discountAmount: double.tryParse(_discountController.text.trim()) ?? 0.0,
-      showTax: _showTax,
-      taxPercentage: double.tryParse(_taxController.text.trim()) ?? 18.0,
-      showAdvancePaid: _showAdvancePaid,
-      advancePaid: double.tryParse(_advanceController.text.trim()) ?? 0.0,
       status: 'Sent',
     );
   }
@@ -169,9 +137,9 @@ class _CreateQuotationScreenState extends State<CreateQuotationScreen> {
     setState(() {
       _sections.add(
         InvoiceSection(
-          heading: 'Service Section',
+          heading: 'New Section Heading (e.g. Beverages)',
           items: [
-            InvoiceItem(name: 'Event Package', price: 50000),
+            InvoiceItem(name: 'New Item / Service', price: 1000),
           ],
         ),
       );
@@ -186,38 +154,13 @@ class _CreateQuotationScreenState extends State<CreateQuotationScreen> {
     });
   }
 
-  bool _hasValidCustomerPhone(QuotationModel quotation) {
-    if (quotation.customerName.trim().isEmpty) return false;
-    final matchingCustomer = repository.customers.firstWhere(
-      (c) => c.name.toLowerCase() == quotation.customerName.trim().toLowerCase(),
-      orElse: () => CustomerModel(id: '', name: '', email: '', phone: '', totalEvents: 0),
-    );
-    return matchingCustomer.phone.trim().isNotEmpty && matchingCustomer.phone.trim().length >= 8;
-  }
-
-  Future<void> _sendViaWhatsApp(QuotationModel quotation) async {
-    final message = Uri.encodeComponent(
-      "Hello ${quotation.customerName},\n\nHere is your quotation #${quotation.quoteNumber} from Haya Event Management for venue ${quotation.venue}.\nTotal Quoted Amount: ₹${quotation.grandTotal.toStringAsFixed(0)}\nValid Until: ${quotation.dueDate}\n\nThank you for choosing us!",
-    );
-    final url = Uri.parse("https://wa.me/?text=$message");
-    if (await canLaunchUrl(url)) {
-      await launchUrl(url, mode: LaunchMode.externalApplication);
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not launch WhatsApp')),
-        );
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Material(
       color: AppTheme.background,
       child: Column(
         children: [
-          // Top Bar
+          // Navigation Bar (2 Tabs)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: const BoxDecoration(
@@ -226,381 +169,1060 @@ class _CreateQuotationScreenState extends State<CreateQuotationScreen> {
             ),
             child: Row(
               children: [
-                IconButton(
-                  icon: const Icon(Icons.arrow_back, color: Color(0xFF1F2937)),
-                  onPressed: widget.onBack ?? () => Navigator.pop(context),
-                ),
+                if (widget.onBack != null)
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back, color: Color(0xFF1F2937)),
+                    onPressed: widget.onBack,
+                  ),
                 Expanded(
                   child: Row(
                     children: [
                       _buildMainTabButton(0, Icons.description_outlined, 'All Quotations (${repository.quotations.length})'),
                       const SizedBox(width: 8),
-                      _buildMainTabButton(1, Icons.tune, 'Quotation Builder & Preview'),
+                      _buildMainTabButton(1, Icons.tune, 'Quotation Form & Customization'),
                     ],
                   ),
                 ),
+                const SizedBox(width: 8),
                 ElevatedButton.icon(
                   onPressed: () {
                     setState(() {
                       _resetFormToNew();
                       _mainTab = 1;
+                      _formSubTab = 0;
                     });
                   },
-                  icon: const Icon(Icons.add, size: 16, color: Colors.white),
-                  label: const Text('+ New Quotation', style: TextStyle(color: Colors.white)),
-                  style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
+                  icon: const Icon(Icons.add, size: 16),
+                  label: const Text('+ Create New Quotation'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primary,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(0, 38),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
                 ),
               ],
             ),
           ),
+
+          // Body
           Expanded(
-            child: _mainTab == 0 ? _buildAllQuotationsTab() : _buildBuilderTab(),
+            child: _mainTab == 0 ? _buildAllQuotationsTab() : _buildQuotationCustomizationTab(),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildMainTabButton(int tabIndex, IconData icon, String title) {
-    final isSelected = _mainTab == tabIndex;
+  Widget _buildMainTabButton(int index, IconData icon, String title) {
+    final bool isSelected = _mainTab == index;
     return InkWell(
-      onTap: () => setState(() => _mainTab = tabIndex),
+      onTap: () {
+        setState(() {
+          _mainTab = index;
+        });
+      },
+      borderRadius: BorderRadius.circular(8),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? AppTheme.primary.withValues(alpha: 0.1) : Colors.transparent,
+          color: isSelected ? AppTheme.primary.withValues(alpha: 0.15) : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
+          border: isSelected ? Border.all(color: AppTheme.primary) : null,
         ),
         child: Row(
           children: [
-            Icon(icon, size: 18, color: isSelected ? AppTheme.primary : const Color(0xFF6B7280)),
+            Icon(icon, size: 18, color: isSelected ? AppTheme.primaryDark : const Color(0xFF6B7280)),
             const SizedBox(width: 6),
-            Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: isSelected ? AppTheme.primary : const Color(0xFF6B7280))),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                color: isSelected ? AppTheme.primaryDark : const Color(0xFF4B5563),
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
+  // TAB 1: ALL QUOTATIONS LIST
   Widget _buildAllQuotationsTab() {
     final quotations = repository.quotations;
-    return quotations.isEmpty
-        ? const Center(child: Text('No quotations yet. Click "+ New Quotation" to start.'))
-        : ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: quotations.length,
-            itemBuilder: (context, index) {
-              final q = quotations[index];
-              return Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFFE5E7EB)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.description, color: AppTheme.primary),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('#${q.quoteNumber} • ${q.customerName}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                          Text('Venue: ${q.venue} • Valid: ${q.dueDate}', style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
-                        ],
-                      ),
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
+
+    return Scaffold(
+      backgroundColor: AppTheme.background,
+      body: quotations.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.description_outlined, size: 64, color: Color(0xFF9CA3AF)),
+                  const SizedBox(height: 12),
+                  const Text('No quotations created yet.', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _resetFormToNew();
+                        _mainTab = 1;
+                        _formSubTab = 0;
+                      });
+                    },
+                    icon: const Icon(Icons.add),
+                    label: const Text('Create First Quotation'),
+                    style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
+                  ),
+                ],
+              ),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: quotations.length,
+              itemBuilder: (context, index) {
+                final q = quotations[index];
+
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 14),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: const BorderSide(color: Color(0xFFE5E7EB)),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('₹${q.grandTotal.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primaryDark)),
-                        const SizedBox(height: 6),
                         Row(
-                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.primary.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(Icons.description_outlined, color: AppTheme.primary, size: 20),
+                                ),
+                                const SizedBox(width: 12),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(q.customerName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+                                    Text('#${q.quoteNumber} • Date: ${q.quotationDate}', style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFDBEAFE),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(q.status, style: const TextStyle(color: Color(0xFF2563EB), fontSize: 11, fontWeight: FontWeight.bold)),
+                            ),
+                          ],
+                        ),
+                        const Divider(height: 20),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('Event / Venue:', style: TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
+                                Text(q.venue.isEmpty ? q.eventType : q.venue, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                              ],
+                            ),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                const Text('Total Quoted Amount:', style: TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
+                                Text('₹${q.totalAmount.toStringAsFixed(0)}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.primaryDark)),
+                              ],
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
                           children: [
                             OutlinedButton.icon(
                               onPressed: () => _loadQuotationForEdit(q),
-                              icon: const Icon(Icons.edit, size: 14),
-                              label: const Text('Edit', style: TextStyle(fontSize: 11)),
-                              style: OutlinedButton.styleFrom(minimumSize: const Size(0, 30)),
+                              icon: const Icon(Icons.edit, size: 16),
+                              label: const Text('Edit'),
                             ),
-                            const SizedBox(width: 6),
-                            ElevatedButton.icon(
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => CreateInvoiceScreen(),
-                                  ),
-                                );
+                            const SizedBox(width: 8),
+                            OutlinedButton.icon(
+                              onPressed: () async {
+                                await QuotationPdfService.printQuotation(q);
                               },
-                              icon: const Icon(Icons.receipt_long, size: 14, color: Colors.white),
-                              label: const Text('Convert to Invoice', style: TextStyle(fontSize: 11, color: Colors.white)),
-                              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, minimumSize: const Size(0, 30)),
-                            ),
-                            const SizedBox(width: 6),
-                            IconButton(
-                              icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
-                              onPressed: () => repository.deleteQuotation(q.id),
+                              icon: const Icon(Icons.print, size: 16),
+                              label: const Text('Print / PDF'),
                             ),
                           ],
                         ),
                       ],
                     ),
-                  ],
-                ),
-              );
-            },
-          );
+                  ),
+                );
+              },
+            ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          setState(() {
+            _resetFormToNew();
+            _mainTab = 1;
+            _formSubTab = 0;
+          });
+        },
+        backgroundColor: AppTheme.primary,
+        child: const Icon(Icons.add, color: Colors.white),
+      ),
+    );
   }
 
-  Widget _buildBuilderTab() {
+  // TAB 2: QUOTATION FORM & CUSTOMIZATION VIEW
+  Widget _buildQuotationCustomizationTab() {
     return Column(
       children: [
         Container(
-          color: Colors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            border: Border(bottom: BorderSide(color: Color(0xFFE5E7EB))),
+          ),
           child: Row(
             children: [
-              TextButton.icon(
-                onPressed: () => setState(() => _formSubTab = 0),
-                icon: Icon(Icons.edit, color: _formSubTab == 0 ? AppTheme.primary : Colors.grey),
-                label: Text('Edit Form', style: TextStyle(color: _formSubTab == 0 ? AppTheme.primary : Colors.grey)),
+              Expanded(
+                child: InkWell(
+                  onTap: () => setState(() => _formSubTab = 0),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    decoration: BoxDecoration(
+                      color: _formSubTab == 0 ? AppTheme.primary : const Color(0xFFF3F4F6),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.edit_document, size: 16, color: _formSubTab == 0 ? Colors.white : const Color(0xFF4B5563)),
+                        const SizedBox(width: 6),
+                        Text('1. Form Builder', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: _formSubTab == 0 ? Colors.white : const Color(0xFF4B5563))),
+                      ],
+                    ),
+                  ),
+                ),
               ),
               const SizedBox(width: 12),
-              TextButton.icon(
-                onPressed: () => setState(() => _formSubTab = 1),
-                icon: Icon(Icons.preview, color: _formSubTab == 1 ? AppTheme.primary : Colors.grey),
-                label: Text('Template Preview', style: TextStyle(color: _formSubTab == 1 ? AppTheme.primary : Colors.grey)),
+              Expanded(
+                child: InkWell(
+                  onTap: () => setState(() => _formSubTab = 1),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    decoration: BoxDecoration(
+                      color: _formSubTab == 1 ? AppTheme.primary : const Color(0xFFF3F4F6),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.preview_outlined, size: 16, color: _formSubTab == 1 ? Colors.white : const Color(0xFF4B5563)),
+                        const SizedBox(width: 6),
+                        Text('2. Template Preview', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: _formSubTab == 1 ? Colors.white : const Color(0xFF4B5563))),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ],
           ),
         ),
         Expanded(
-          child: _formSubTab == 0 ? _buildQuotationForm() : _buildTemplatePreview(),
+          child: _formSubTab == 0 ? _buildQuotationFormBuilder() : _buildQuotationTemplatePreview(),
         ),
       ],
     );
   }
 
-  Widget _buildQuotationForm() {
-    final customers = repository.customers;
+  // FORM BUILDER
+  Widget _buildQuotationFormBuilder() {
+    final quotation = _buildCurrentQuotation();
+    final bool isMobile = MediaQuery.of(context).size.width < 600;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFE5E7EB))),
+          _buildFormCard(
+            title: '1. Customer & Event Details',
+            icon: Icons.person_outline,
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Quotation & Client Details', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                const SizedBox(height: 12),
-                if (customers.isNotEmpty)
-                  DropdownButtonFormField<String>(
-                    value: customers.any((c) => c.name == _customerController.text) ? _customerController.text : customers.first.name,
-                    decoration: const InputDecoration(labelText: 'Customer *'),
-                    items: customers.map((c) => DropdownMenuItem(value: c.name, child: Text(c.name))).toList(),
-                    onChanged: (v) => setState(() => _customerController.text = v ?? ''),
+                if (isMobile) ...[
+                  TextField(
+                    controller: _customerController,
+                    decoration: const InputDecoration(labelText: 'Customer Name *'),
+                    onChanged: (_) => setState(() {}),
                   ),
-                const SizedBox(height: 12),
-                TextField(controller: _venueController, decoration: const InputDecoration(labelText: 'Venue Location')),
-                const SizedBox(height: 12),
-                TextField(controller: _quoteNumberController, decoration: const InputDecoration(labelText: 'Quotation Number')),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Quotation Sections & Items', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              ElevatedButton.icon(
-                onPressed: _addSection,
-                icon: const Icon(Icons.add, size: 16),
-                label: const Text('+ Add Section'),
-                style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          ..._sections.asMap().entries.map((entry) {
-            final sIdx = entry.key;
-            final section = entry.value;
-            return Container(
-              margin: const EdgeInsets.only(bottom: 16),
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFE5E7EB))),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _venueController,
+                    decoration: const InputDecoration(labelText: 'Venue / Location *'),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _quoteNumberController,
+                    decoration: const InputDecoration(labelText: 'Quote Number'),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _quotationDateController,
+                    decoration: const InputDecoration(labelText: 'Quotation Date'),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ] else ...[
                   Row(
                     children: [
                       Expanded(
                         child: TextField(
-                          controller: TextEditingController(text: section.heading)..selection = TextSelection.fromPosition(TextPosition(offset: section.heading.length)),
-                          onChanged: (val) => section.heading = val,
-                          decoration: const InputDecoration(labelText: 'Section Heading'),
+                          controller: _customerController,
+                          decoration: const InputDecoration(labelText: 'Customer Name *'),
+                          onChanged: (_) => setState(() {}),
                         ),
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline, color: Colors.red),
-                        onPressed: () => setState(() => _sections.removeAt(sIdx)),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextField(
+                          controller: _venueController,
+                          decoration: const InputDecoration(labelText: 'Venue / Location *'),
+                          onChanged: (_) => setState(() {}),
+                        ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 10),
-                  ...section.items.asMap().entries.map((itemEntry) {
-                    final iIdx = itemEntry.key;
-                    final item = itemEntry.value;
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            flex: 3,
-                            child: TextField(
-                              controller: TextEditingController(text: item.name)..selection = TextSelection.fromPosition(TextPosition(offset: item.name.length)),
-                              onChanged: (val) => item.name = val,
-                              decoration: const InputDecoration(hintText: 'Item Name / Description'),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            flex: 1,
-                            child: TextField(
-                              controller: TextEditingController(text: item.price.toStringAsFixed(0)),
-                              keyboardType: TextInputType.number,
-                              onChanged: (val) {
-                                item.price = double.tryParse(val) ?? 0;
-                              },
-                              decoration: const InputDecoration(hintText: 'Price (₹)'),
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.close, size: 16, color: Colors.red),
-                            onPressed: () => setState(() => section.items.removeAt(iIdx)),
-                          ),
-                        ],
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _quoteNumberController,
+                          decoration: const InputDecoration(labelText: 'Quote Number'),
+                          onChanged: (_) => setState(() {}),
+                        ),
                       ),
-                    );
-                  }),
-                  TextButton.icon(
-                    onPressed: () => _addItemToSection(sIdx),
-                    icon: const Icon(Icons.add, size: 14),
-                    label: const Text('+ Add Item'),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextField(
+                          controller: _quotationDateController,
+                          decoration: const InputDecoration(labelText: 'Quotation Date'),
+                          onChanged: (_) => setState(() {}),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
-              ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('2. Quotation Sections & Item Tables', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+                      SizedBox(height: 2),
+                      Text('Group items under custom headings (e.g. Catering, Decor, Lighting)', style: TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
+                    ],
+                  ),
+                ),
+                ElevatedButton.icon(
+                  onPressed: _addSection,
+                  icon: const Icon(Icons.add, size: 16),
+                  label: const Text('+ Create Section Heading'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primary,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(0, 38),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          ...List.generate(_sections.length, (sIdx) {
+            final section = _sections[sIdx];
+            return _QuotationSectionEditor(
+              key: ObjectKey(section),
+              section: section,
+              isMobile: isMobile,
+              onChanged: () => setState(() {}),
+              onDeleteSection: () {
+                setState(() {
+                  _sections.removeAt(sIdx);
+                });
+              },
+              onAddItem: () => _addItemToSection(sIdx),
             );
           }),
-          const SizedBox(height: 20),
+
+          const SizedBox(height: 12),
+
           SizedBox(
             width: double.infinity,
-            height: 48,
-            child: ElevatedButton(
-              onPressed: _saveCurrentQuotation,
-              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
-              child: const Text('Save Quotation'),
+            height: 46,
+            child: OutlinedButton.icon(
+              onPressed: _addSection,
+              icon: const Icon(Icons.add_circle_outline, color: AppTheme.primaryDark),
+              label: const Text(
+                '+ Add Another Section Heading (e.g. Sound, Florist)',
+                style: TextStyle(color: AppTheme.primaryDark, fontWeight: FontWeight.bold),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: AppTheme.primary, width: 1.5),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Total Quoted Amount:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+                Text('₹${quotation.totalAmount.toStringAsFixed(0)}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.primaryDark)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 48,
+                  child: ElevatedButton.icon(
+                    onPressed: _saveCurrentQuotation,
+                    icon: const Icon(Icons.save),
+                    label: const Text('Save Quotation to List'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primary,
+                      minimumSize: const Size(0, 48),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  height: 48,
+                  child: OutlinedButton.icon(
+                    onPressed: () => setState(() => _formSubTab = 1),
+                    icon: const Icon(Icons.preview_outlined),
+                    label: const Text('Template Preview'),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 30),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFormCard({required String title, required IconData icon, required Widget child}) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: AppTheme.primary, size: 20),
+              const SizedBox(width: 8),
+              Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+            ],
+          ),
+          const SizedBox(height: 14),
+          child,
+        ],
+      ),
+    );
+  }
+
+  // LIVE TEMPLATE PREVIEW
+  Widget _buildQuotationTemplatePreview() {
+    final quotation = _buildCurrentQuotation();
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 800),
+          child: Container(
+            padding: const EdgeInsets.all(28),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 16, offset: const Offset(0, 4)),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(color: AppTheme.primary, width: 2),
+                          ),
+                          child: const Center(
+                            child: Text('H', style: TextStyle(color: AppTheme.primary, fontSize: 22, fontWeight: FontWeight.bold, fontStyle: FontStyle.italic)),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Haya', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+                            Text('Event Management', style: TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
+                          ],
+                        ),
+                      ],
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppTheme.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text('QUOTATION', style: TextStyle(color: AppTheme.primaryDark, fontSize: 13, fontWeight: FontWeight.bold)),
+                        ),
+                        const SizedBox(height: 6),
+                        Text('# ${quotation.quoteNumber}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                        Text('Date: ${quotation.quotationDate}', style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+                      ],
+                    ),
+                  ],
+                ),
+                const Divider(height: 30),
+
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF9FAFB),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Quotation For:', style: TextStyle(fontSize: 11, color: Color(0xFF6B7280), fontWeight: FontWeight.bold)),
+                          Text(quotation.customerName.isEmpty ? 'N/A' : quotation.customerName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+                        ],
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          const Text('Event / Venue:', style: TextStyle(fontSize: 11, color: Color(0xFF6B7280), fontWeight: FontWeight.bold)),
+                          Text(quotation.venue.isEmpty ? quotation.eventType : quotation.venue, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                ...quotation.sections.map((section) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        color: const Color(0xFF1E293B),
+                        child: Text(
+                          section.heading,
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                      ),
+                      Table(
+                        border: TableBorder.all(color: const Color(0xFFE5E7EB)),
+                        columnWidths: const {
+                          0: FlexColumnWidth(3.5),
+                          1: FlexColumnWidth(1.2),
+                          2: FlexColumnWidth(1.5),
+                          3: FlexColumnWidth(1.8),
+                        },
+                        children: [
+                          TableRow(
+                            decoration: const BoxDecoration(color: Color(0xFFF1F5F9)),
+                            children: const [
+                              Padding(padding: EdgeInsets.all(8), child: Text('Item Description', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                              Padding(padding: EdgeInsets.all(8), child: Text('Qty', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                              Padding(padding: EdgeInsets.all(8), child: Text('Rate', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                              Padding(padding: EdgeInsets.all(8), child: Text('Amount (₹)', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                            ],
+                          ),
+                          ...section.items.map((item) {
+                            return TableRow(
+                              children: [
+                                Padding(padding: const EdgeInsets.all(8), child: Text(item.name.isEmpty ? '-' : item.name, style: const TextStyle(fontSize: 12))),
+                                Padding(padding: const EdgeInsets.all(8), child: Text(item.qty != null ? '${item.qty}' : '-', textAlign: TextAlign.center, style: const TextStyle(fontSize: 12))),
+                                Padding(padding: const EdgeInsets.all(8), child: Text(item.rate != null ? '₹${item.rate!.toStringAsFixed(0)}' : '-', textAlign: TextAlign.right, style: const TextStyle(fontSize: 12))),
+                                Padding(padding: const EdgeInsets.all(8), child: Text('₹${item.price.toStringAsFixed(0)}', textAlign: TextAlign.right, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
+                              ],
+                            );
+                          }),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                  );
+                }),
+
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Container(
+                    width: 250,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: const Color(0xFFE5E7EB)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Total Quoted Amount', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF4B5563))),
+                        Text('₹${quotation.totalAmount.toStringAsFixed(0)}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.primaryDark)),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 40),
+
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Thank you for choosing Haya Event Management!', style: TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
+                    Row(
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: () async {
+                            final pdfBytes = await QuotationPdfService.generatePdfBytes(quotation);
+                            await Printing.sharePdf(bytes: pdfBytes, filename: 'Quotation_${quotation.quoteNumber}.pdf');
+                          },
+                          icon: const Icon(Icons.download, size: 16),
+                          label: const Text('Export PDF'),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton.icon(
+                          onPressed: () async {
+                            await QuotationPdfService.printQuotation(quotation);
+                          },
+                          icon: const Icon(Icons.print, size: 16),
+                          label: const Text('Print'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.primary,
+                            minimumSize: const Size(0, 38),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _QuotationSectionEditor extends StatefulWidget {
+  final InvoiceSection section;
+  final bool isMobile;
+  final VoidCallback onChanged;
+  final VoidCallback onDeleteSection;
+  final VoidCallback onAddItem;
+
+  const _QuotationSectionEditor({
+    required Key key,
+    required this.section,
+    required this.isMobile,
+    required this.onChanged,
+    required this.onDeleteSection,
+    required this.onAddItem,
+  }) : super(key: key);
+
+  @override
+  State<_QuotationSectionEditor> createState() => _QuotationSectionEditorState();
+}
+
+class _QuotationSectionEditorState extends State<_QuotationSectionEditor> {
+  late TextEditingController headingController;
+
+  @override
+  void initState() {
+    super.initState();
+    headingController = TextEditingController(text: widget.section.heading);
+  }
+
+  @override
+  void dispose() {
+    headingController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: headingController,
+                  decoration: const InputDecoration(
+                    labelText: 'Section Heading (e.g. Catering, Decor, Lighting)',
+                    prefixIcon: Icon(Icons.title, size: 18),
+                  ),
+                  onChanged: (val) {
+                    widget.section.heading = val;
+                    widget.onChanged();
+                  },
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline, color: Colors.red),
+                tooltip: 'Delete Section',
+                onPressed: widget.onDeleteSection,
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          const Text(
+            'Items (Name & Price required; Qty & Rate optional):',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF4B5563)),
+          ),
+          const SizedBox(height: 10),
+
+          Column(
+            children: List.generate(widget.section.items.length, (iIdx) {
+              final item = widget.section.items[iIdx];
+              return _QuotationItemRow(
+                key: ObjectKey(item),
+                item: item,
+                isMobile: widget.isMobile,
+                onChanged: widget.onChanged,
+                onDelete: () {
+                  setState(() {
+                    widget.section.items.removeAt(iIdx);
+                  });
+                  widget.onChanged();
+                },
+              );
+            }),
+          ),
+
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: widget.onAddItem,
+              icon: const Icon(Icons.add_circle_outline, size: 16),
+              label: Text('Add Item to ${widget.section.heading}'),
             ),
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildTemplatePreview() {
-    final quotation = _buildCurrentQuotation();
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Center(
-        child: Container(
-          width: 700,
-          padding: const EdgeInsets.all(32),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFE5E7EB))),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(repository.companyName, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.brown)),
-                      Text(repository.companyAddress, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                    ],
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(color: Colors.amber.shade100, borderRadius: BorderRadius.circular(6)),
-                    child: const Text('QUOTATION', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.amber)),
-                  ),
-                ],
-              ),
-              const Divider(height: 30),
-              Text('Prepared For: ${quotation.customerName}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-              Text('Venue: ${quotation.venue}', style: const TextStyle(color: Colors.grey, fontSize: 12)),
-              const SizedBox(height: 20),
-              ...quotation.sections.map((s) => Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(s.heading, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.brown)),
-                      ...s.items.map((i) => Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(i.name),
-                                Text('₹${i.price.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                              ],
-                            ),
-                          )),
-                      const SizedBox(height: 10),
-                    ],
-                  )),
-              const Divider(height: 30),
-              Align(
-                alignment: Alignment.centerRight,
-                child: Text('Total Quoted: ₹${quotation.grandTotal.toStringAsFixed(0)}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.brown)),
-              ),
-              const SizedBox(height: 30),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: () async {
-                      final pdfBytes = await QuotationPdfService.generatePdfBytes(quotation);
-                      await Printing.sharePdf(bytes: pdfBytes, filename: 'Quotation_${quotation.quoteNumber}.pdf');
-                    },
-                    icon: const Icon(Icons.download, size: 16),
-                    label: const Text('Export PDF'),
-                  ),
-                  const SizedBox(width: 8),
-                  if (_hasValidCustomerPhone(quotation)) ...[
-                    ElevatedButton.icon(
-                      onPressed: () => _sendViaWhatsApp(quotation),
-                      icon: const Icon(Icons.share, size: 16, color: Colors.white),
-                      label: const Text('WhatsApp', style: TextStyle(color: Colors.white)),
-                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF25D366)),
-                    ),
-                    const SizedBox(width: 8),
-                  ],
-                  ElevatedButton.icon(
-                    onPressed: () => QuotationPdfService.printQuotation(quotation),
-                    icon: const Icon(Icons.print, size: 16, color: Colors.white),
-                    label: const Text('Print', style: TextStyle(color: Colors.white)),
-                    style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
-                  ),
-                ],
-              ),
-            ],
-          ),
+class _QuotationItemRow extends StatefulWidget {
+  final InvoiceItem item;
+  final bool isMobile;
+  final VoidCallback onChanged;
+  final VoidCallback onDelete;
+
+  const _QuotationItemRow({
+    required Key key,
+    required this.item,
+    required this.isMobile,
+    required this.onChanged,
+    required this.onDelete,
+  }) : super(key: key);
+
+  @override
+  State<_QuotationItemRow> createState() => _QuotationItemRowState();
+}
+
+class _QuotationItemRowState extends State<_QuotationItemRow> {
+  late TextEditingController nameController;
+  late TextEditingController qtyController;
+  late TextEditingController rateController;
+  late TextEditingController priceController;
+
+  @override
+  void initState() {
+    super.initState();
+    nameController = TextEditingController(text: widget.item.name);
+    qtyController = TextEditingController(text: widget.item.qty != null ? '${widget.item.qty}' : '');
+    rateController = TextEditingController(text: widget.item.rate != null ? '${widget.item.rate}' : '');
+    priceController = TextEditingController(text: '${widget.item.price.toStringAsFixed(0)}');
+  }
+
+  @override
+  void dispose() {
+    nameController.dispose();
+    qtyController.dispose();
+    rateController.dispose();
+    priceController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.isMobile) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF9FAFB),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
         ),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: nameController,
+                    decoration: const InputDecoration(
+                      hintText: 'Item Name *',
+                      contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    ),
+                    onChanged: (val) {
+                      widget.item.name = val;
+                      widget.onChanged();
+                    },
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.remove_circle_outline, color: Colors.redAccent, size: 20),
+                  onPressed: widget.onDelete,
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: qtyController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      hintText: 'Qty (Opt)',
+                      contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                    ),
+                    onChanged: (val) {
+                      widget.item.qty = double.tryParse(val);
+                      if (widget.item.qty != null && widget.item.rate != null) {
+                        widget.item.calculatePrice();
+                        priceController.text = widget.item.price.toStringAsFixed(0);
+                      }
+                      widget.onChanged();
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextField(
+                    controller: rateController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      hintText: 'Rate (Opt)',
+                      contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                    ),
+                    onChanged: (val) {
+                      widget.item.rate = double.tryParse(val);
+                      if (widget.item.qty != null && widget.item.rate != null) {
+                        widget.item.calculatePrice();
+                        priceController.text = widget.item.price.toStringAsFixed(0);
+                      }
+                      widget.onChanged();
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextField(
+                    controller: priceController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      hintText: 'Price *',
+                      contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                    ),
+                    onChanged: (val) {
+                      widget.item.price = double.tryParse(val) ?? 0.0;
+                      widget.onChanged();
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 3,
+            child: TextField(
+              controller: nameController,
+              decoration: const InputDecoration(
+                hintText: 'Item Name *',
+                contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              ),
+              onChanged: (val) {
+                widget.item.name = val;
+                widget.onChanged();
+              },
+            ),
+          ),
+          const SizedBox(width: 8),
+
+          Expanded(
+            flex: 2,
+            child: TextField(
+              controller: qtyController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                hintText: 'Qty (Opt)',
+                contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              ),
+              onChanged: (val) {
+                widget.item.qty = double.tryParse(val);
+                if (widget.item.qty != null && widget.item.rate != null) {
+                  widget.item.calculatePrice();
+                  priceController.text = widget.item.price.toStringAsFixed(0);
+                }
+                widget.onChanged();
+              },
+            ),
+          ),
+          const SizedBox(width: 8),
+
+          Expanded(
+            flex: 2,
+            child: TextField(
+              controller: rateController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                hintText: 'Rate (Opt)',
+                contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              ),
+              onChanged: (val) {
+                widget.item.rate = double.tryParse(val);
+                if (widget.item.qty != null && widget.item.rate != null) {
+                  widget.item.calculatePrice();
+                  priceController.text = widget.item.price.toStringAsFixed(0);
+                }
+                widget.onChanged();
+              },
+            ),
+          ),
+          const SizedBox(width: 8),
+
+          Expanded(
+            flex: 2,
+            child: TextField(
+              controller: priceController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                hintText: 'Price *',
+                contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              ),
+              onChanged: (val) {
+                widget.item.price = double.tryParse(val) ?? 0.0;
+                widget.onChanged();
+              },
+            ),
+          ),
+
+          IconButton(
+            icon: const Icon(Icons.remove_circle_outline, color: Colors.redAccent, size: 20),
+            onPressed: widget.onDelete,
+          ),
+        ],
       ),
     );
   }
