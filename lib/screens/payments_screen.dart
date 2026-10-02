@@ -441,7 +441,7 @@ class _CreatePaymentModalState extends State<_CreatePaymentModal> {
                     final payment = PaymentModel(
                       id: DateTime.now().millisecondsSinceEpoch.toString(),
                       date: '12 Sep 2026',
-                      eventType: '${eventController.text.trim()} ($customerName)',
+                      eventType: eventController.text.trim(),
                       amount: double.tryParse(amountController.text.trim()) ?? 0,
                       method: selectedMethod,
                     );
