@@ -37,6 +37,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
   int _selectedIndex = 0;
   EventModel? _selectedEvent;
   bool _isCreatingInvoice = false;
+  final repository = AppDataRepository.instance;
 
   void _onNavigateToTab(int index) {
     setState(() {
@@ -282,6 +283,24 @@ class _MainShellScreenState extends State<MainShellScreen> {
                 Expanded(
                   child: Column(
                     children: [
+                      if (!repository.isOnline)
+                        Container(
+                          width: double.infinity,
+                          color: Colors.red.shade700,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          child: const Row(
+                            children: [
+                              Icon(Icons.wifi_off, color: Colors.white, size: 18),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'No Internet Connection. This app requires an active internet connection to work properly.',
+                                  style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       TopHeader(
                         actionLabel: _getHeaderActionLabel(),
                         onActionButtonPressed: _getHeaderActionCallback(),
@@ -352,7 +371,31 @@ class _MainShellScreenState extends State<MainShellScreen> {
                   ],
                 )
               : null,
-          body: _buildContentBody(false),
+          body: Column(
+            children: [
+              if (!repository.isOnline)
+                Container(
+                  width: double.infinity,
+                  color: Colors.red.shade700,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.wifi_off, color: Colors.white, size: 18),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'No Internet Connection. This app requires an active internet connection to work properly.',
+                          style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              Expanded(
+                child: _buildContentBody(false),
+              ),
+            ],
+          ),
           bottomNavigationBar: BottomNavigationBar(
             currentIndex: _getBottomNavIndex(),
             onTap: _onBottomNavTapped,
