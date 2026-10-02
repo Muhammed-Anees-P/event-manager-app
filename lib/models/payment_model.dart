@@ -4,6 +4,7 @@ class PaymentModel {
   final String eventType;
   final double amount;
   final String method; // e.g. UPI, Bank Transfer, Cash
+  final String? customerName;
 
   const PaymentModel({
     required this.id,
@@ -11,5 +12,6 @@ class PaymentModel {
     required this.eventType,
     required this.amount,
     required this.method,
+    this.customerName,
   });
 }
