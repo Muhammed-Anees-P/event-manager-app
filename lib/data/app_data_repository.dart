@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 
 import '../models/app_notification_model.dart';
@@ -19,7 +20,25 @@ class AppDataRepository extends ChangeNotifier {
   static final AppDataRepository instance = AppDataRepository._internal();
 
   AppDataRepository._internal() {
+    checkInternetConnection();
     fetchAllFromSupabase();
+  }
+
+  bool isOnline = true;
+
+  Future<void> checkInternetConnection() async {
+    if (kIsWeb) {
+      isOnline = true;
+      notifyListeners();
+      return;
+    }
+    try {
+      final result = await InternetAddress.lookup('google.com');
+      isOnline = result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+    } catch (_) {
+      isOnline = false;
+    }
+    notifyListeners();
   }
 
   // Active Logged-In User State
@@ -217,12 +236,19 @@ class AppDataRepository extends ChangeNotifier {
       // 5. Fetch Payments
       final paymentsData = await client.from('payments').select().order('created_at', ascending: false);
       payments = (paymentsData as List).map((map) {
+        final rawEventType = map['event_type'] ?? '';
+        String? parsedCustomer;
+        if (rawEventType.contains('(') && rawEventType.endsWith(')')) {
+          final start = rawEventType.lastIndexOf('(');
+          parsedCustomer = rawEventType.substring(start + 1, rawEventType.length - 1);
+        }
         return PaymentModel(
           id: map['id'].toString(),
           date: map['date'] ?? '',
-          eventType: map['event_type'] ?? '',
+          eventType: rawEventType,
           amount: (map['amount'] as num?)?.toDouble() ?? 0.0,
           method: map['method'] ?? 'UPI',
+          customerName: parsedCustomer,
         );
       }).toList();
 
@@ -502,17 +528,30 @@ class AppDataRepository extends ChangeNotifier {
   }
 
   Future<void> addPayment(PaymentModel item) async {
-    payments.insert(0, item);
+    final finalEventType = (item.customerName != null && item.customerName!.isNotEmpty && !item.eventType.contains(item.customerName!))
+        ? '${item.eventType} (${item.customerName})'
+        : item.eventType;
+
+    final paymentToSave = PaymentModel(
+      id: item.id,
+      date: item.date,
+      eventType: finalEventType,
+      amount: item.amount,
+      method: item.method,
+      customerName: item.customerName,
+    );
+
+    payments.insert(0, paymentToSave);
     notifyListeners();
 
     final client = SupabaseService.instance.client;
     if (client != null) {
       try {
         final res = await client.from('payments').insert({
-          'date': item.date,
-          'event_type': item.eventType,
-          'amount': item.amount,
-          'method': item.method,
+          'date': paymentToSave.date,
+          'event_type': paymentToSave.eventType,
+          'amount': paymentToSave.amount,
+          'method': paymentToSave.method,
         }).select();
         if (kDebugMode) print('✅ Supabase addPayment Success: $res');
       } catch (e) {
