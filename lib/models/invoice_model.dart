@@ -30,6 +30,21 @@ class InvoiceSection {
   double get subtotal => items.fold(0, (sum, item) => sum + item.price);
 }
 
+enum InvoiceStatus { pending, partiallyPaid, paid }
+
+extension InvoiceStatusExtension on InvoiceStatus {
+  String get displayName {
+    switch (this) {
+      case InvoiceStatus.pending:
+        return 'Pending';
+      case InvoiceStatus.partiallyPaid:
+        return 'Partially Paid';
+      case InvoiceStatus.paid:
+        return 'Paid';
+    }
+  }
+}
+
 class InvoiceModel {
   String invoiceNumber;
   String customerName;
@@ -75,4 +90,10 @@ class InvoiceModel {
   double get calculatedAdvance => showAdvancePaid ? advancePaid : 0.0;
 
   double get balanceDue => (grandTotal - calculatedAdvance).clamp(0, double.infinity);
+
+  InvoiceStatus get status {
+    if (!showAdvancePaid || calculatedAdvance <= 0) return InvoiceStatus.pending;
+    if (calculatedAdvance >= grandTotal) return InvoiceStatus.paid;
+    return InvoiceStatus.partiallyPaid;
+  }
 }
