@@ -5,6 +5,7 @@ import '../models/payment_model.dart';
 import '../models/app_notification_model.dart';
 import '../services/cash_receipt_pdf_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/date_formatter.dart';
 
 class PaymentsScreen extends StatefulWidget {
   const PaymentsScreen({super.key});
@@ -440,7 +441,7 @@ class _CreatePaymentModalState extends State<_CreatePaymentModal> {
                     final customerName = selectedCustomer ?? 'Walk-in Customer';
                     final payment = PaymentModel(
                       id: DateTime.now().millisecondsSinceEpoch.toString(),
-                      date: '12 Sep 2026',
+                      date: AppDateUtils.getTodayDate(),
                       eventType: eventController.text.trim(),
                       amount: double.tryParse(amountController.text.trim()) ?? 0,
                       method: selectedMethod,
@@ -452,7 +453,7 @@ class _CreatePaymentModalState extends State<_CreatePaymentModal> {
                         id: DateTime.now().millisecondsSinceEpoch.toString(),
                         title: 'Payment Recorded',
                         message: 'Received ₹${payment.amount.toStringAsFixed(0)} from $customerName via $selectedMethod.',
-                        date: '12 Sep 2026',
+                        date: AppDateUtils.getTodayDate(),
                         type: NotificationType.eventReminder,
                       ),
                     );
