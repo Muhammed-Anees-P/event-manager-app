@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../data/app_data_repository.dart';
 import '../models/event_model.dart';
 import '../theme/app_theme.dart';
+import '../utils/date_formatter.dart';
 
 class EventsScreen extends StatefulWidget {
   final Function(EventModel) onSelectEvent;
@@ -304,7 +305,7 @@ class _CreateEventModalState extends State<_CreateEventModal> {
   final _formKey = GlobalKey<FormState>();
   final titleController = TextEditingController();
   final venueController = TextEditingController();
-  final dateController = TextEditingController(text: '28 Sep 2026');
+  final dateController = TextEditingController(text: AppDateUtils.getDueDate(daysFromToday: 15));
   final timeController = TextEditingController(text: '5:00 PM - 11:00 PM');
   final guestsController = TextEditingController(text: '100');
   final contractController = TextEditingController(text: '250000');
