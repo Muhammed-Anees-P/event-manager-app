@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../data/app_data_repository.dart';
 import '../models/inventory_model.dart';
 import '../theme/app_theme.dart';
+import '../widgets/delete_confirmation_dialog.dart';
 
 class InventoryScreen extends StatefulWidget {
   const InventoryScreen({super.key});
@@ -40,6 +41,17 @@ class _InventoryScreenState extends State<InventoryScreen> {
     if (mounted) setState(() {});
   }
 
+  void _showEditInventoryModal(BuildContext context, InventoryModel item) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => _EditInventoryModal(item: item),
+    );
+  }
+
   void _showInventoryDetail(BuildContext context, InventoryModel item) {
     showDialog(
       context: context,
@@ -58,9 +70,24 @@ class _InventoryScreenState extends State<InventoryScreen> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
           IconButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _showEditInventoryModal(context, item);
+            },
+            icon: const Icon(Icons.edit_outlined, color: Color(0xFF4B5563)),
+            tooltip: 'Edit Item',
+          ),
+          IconButton(
             onPressed: () async {
-              await repository.deleteInventory(item.id);
-              if (ctx.mounted) Navigator.pop(ctx);
+              Navigator.pop(ctx);
+              final confirm = await AppDeleteConfirmationDialog.show(
+                context,
+                title: 'Delete Inventory Item',
+                itemDetails: 'Item: ${item.itemName} (${item.category})',
+              );
+              if (confirm) {
+                await repository.deleteInventory(item.id);
+              }
             },
             icon: const Icon(Icons.delete_outline, color: Colors.red),
             tooltip: 'Delete Item',
@@ -72,7 +99,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final items = repository.inventory;
+    final items = repository.activeInventory;
 
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -116,6 +143,26 @@ class _InventoryScreenState extends State<InventoryScreen> {
                           ),
                         ),
                         Text('₹${item.rentalPrice.toStringAsFixed(0)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppTheme.primaryDark)),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          icon: const Icon(Icons.edit_outlined, size: 18, color: Color(0xFF4B5563)),
+                          tooltip: 'Edit Item',
+                          onPressed: () => _showEditInventoryModal(context, item),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                          tooltip: 'Delete Item',
+                          onPressed: () async {
+                            final confirm = await AppDeleteConfirmationDialog.show(
+                              context,
+                              title: 'Delete Inventory Item',
+                              itemDetails: 'Item: ${item.itemName} (${item.category})',
+                            );
+                            if (confirm) {
+                              await repository.deleteInventory(item.id);
+                            }
+                          },
+                        ),
                       ],
                     ),
                   ),
@@ -126,6 +173,133 @@ class _InventoryScreenState extends State<InventoryScreen> {
         onPressed: () => InventoryScreen.showCreateDialog(context),
         backgroundColor: AppTheme.primary,
         child: const Icon(Icons.add, color: Colors.white),
+      ),
+    );
+  }
+}
+
+class _EditInventoryModal extends StatefulWidget {
+  final InventoryModel item;
+
+  const _EditInventoryModal({required this.item});
+
+  @override
+  State<_EditInventoryModal> createState() => _EditInventoryModalState();
+}
+
+class _EditInventoryModalState extends State<_EditInventoryModal> {
+  final _formKey = GlobalKey<FormState>();
+  late TextEditingController nameController;
+  late TextEditingController qtyController;
+  late TextEditingController priceController;
+  late String selectedCategory;
+
+  @override
+  void initState() {
+    super.initState();
+    nameController = TextEditingController(text: widget.item.itemName);
+    qtyController = TextEditingController(text: widget.item.quantity.toString());
+    priceController = TextEditingController(text: widget.item.rentalPrice.toStringAsFixed(0));
+    selectedCategory = widget.item.category;
+  }
+
+  @override
+  void dispose() {
+    nameController.dispose();
+    qtyController.dispose();
+    priceController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final categories = ['Sound & Lighting', 'Decor & Props', 'Seating & Tables', 'Catering Equipment', 'Stage & Truss'];
+    if (!categories.contains(selectedCategory)) {
+      categories.add(selectedCategory);
+    }
+
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+        left: 20,
+        right: 20,
+        top: 20,
+      ),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Edit Inventory Item', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: nameController,
+              decoration: const InputDecoration(labelText: 'Item Name *'),
+              validator: (v) => v == null || v.trim().isEmpty ? 'Please enter item name' : null,
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              value: selectedCategory,
+              decoration: const InputDecoration(labelText: 'Category'),
+              items: categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+              onChanged: (v) => setState(() => selectedCategory = v!),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: qtyController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Quantity'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextFormField(
+                    controller: priceController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Rental Price (₹)'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton(
+                onPressed: () {
+                  if (_formKey.currentState!.validate()) {
+                    final updated = InventoryModel(
+                      id: widget.item.id,
+                      itemName: nameController.text.trim(),
+                      category: selectedCategory,
+                      quantity: int.tryParse(qtyController.text.trim()) ?? widget.item.quantity,
+                      rentalPrice: double.tryParse(priceController.text.trim()) ?? widget.item.rentalPrice,
+                      isDeleted: widget.item.isDeleted,
+                    );
+                    final idx = AppDataRepository.instance.inventory.indexWhere((i) => i.id == widget.item.id);
+                    if (idx >= 0) {
+                      AppDataRepository.instance.inventory[idx] = updated;
+                      AppDataRepository.instance.notifyListeners();
+                    }
+                    Navigator.pop(context);
+                  }
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
+                child: const Text('Update Item'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
