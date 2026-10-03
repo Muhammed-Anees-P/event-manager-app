@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../data/app_data_repository.dart';
 import '../models/enquiry_model.dart';
 import '../theme/app_theme.dart';
+import '../utils/date_formatter.dart';
 
 class EnquiriesScreen extends StatefulWidget {
   const EnquiriesScreen({super.key});
@@ -653,7 +654,7 @@ class _CreateEnquiryModalState extends State<_CreateEnquiryModal> {
                       name: nameController.text.trim(),
                       phone: phoneController.text.trim(),
                       type: selectedType,
-                      totalDate: '12 Sep 2026',
+                      totalDate: AppDateUtils.getTodayDate(),
                       amount: double.tryParse(amountController.text.trim()) ?? 0,
                       status: selectedStatus,
                     );
