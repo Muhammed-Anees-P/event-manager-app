@@ -3,8 +3,10 @@ import '../data/app_data_repository.dart';
 import '../models/event_model.dart';
 import '../models/task_model.dart';
 import '../models/invoice_model.dart';
+import '../models/payment_model.dart';
 import '../services/invoice_pdf_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/date_formatter.dart';
 import 'create_invoice_screen.dart';
 import 'tasks_screen.dart';
 
@@ -42,6 +44,103 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> with SingleTick
 
   void _onDataChanged() {
     if (mounted) setState(() {});
+  }
+
+  void _showRecordPaymentForInvoice(BuildContext context, InvoiceModel inv) {
+    final double remainingBalance = inv.balanceDue;
+
+    if (remainingBalance <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('This invoice is already fully paid!')),
+      );
+      return;
+    }
+
+    final amountController = TextEditingController(text: remainingBalance.toStringAsFixed(0));
+    String selectedMethod = 'UPI';
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setStateModal) => AlertDialog(
+          title: Text('Record Payment - Invoice #${inv.invoiceNumber}'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Client: ${inv.customerName}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              Text('Grand Total: ₹${inv.grandTotal.toStringAsFixed(0)} • Remaining Balance: ₹${remainingBalance.toStringAsFixed(0)}',
+                  style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+              const SizedBox(height: 12),
+              TextField(
+                controller: amountController,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: 'Payment Amount (Max: ₹${remainingBalance.toStringAsFixed(0)}) *',
+                ),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: selectedMethod,
+                decoration: const InputDecoration(labelText: 'Payment Method'),
+                items: ['UPI', 'Bank Transfer', 'Cash', 'Credit Card']
+                    .map((m) => DropdownMenuItem(value: m, child: Text(m)))
+                    .toList(),
+                onChanged: (v) => setStateModal(() => selectedMethod = v!),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () async {
+                final amt = double.tryParse(amountController.text.trim()) ?? 0.0;
+                if (amt <= 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Please enter a valid payment amount.')),
+                  );
+                  return;
+                }
+                if (amt > remainingBalance) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Payment amount (₹${amt.toStringAsFixed(0)}) cannot exceed remaining balance due of ₹${remainingBalance.toStringAsFixed(0)}.'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                  return;
+                }
+
+                // 1. Add Payment Transaction
+                final payment = PaymentModel(
+                  id: DateTime.now().millisecondsSinceEpoch.toString(),
+                  date: AppDateUtils.getTodayDate(),
+                  eventType: 'Invoice #${inv.invoiceNumber} Payment (${inv.customerName})',
+                  amount: amt,
+                  method: selectedMethod,
+                );
+                await repository.addPayment(payment);
+
+                // 2. Update Invoice Advance Paid
+                inv.advancePaid = inv.advancePaid + amt;
+                inv.showAdvancePaid = true;
+                await repository.saveInvoice(inv);
+
+                if (ctx.mounted) Navigator.pop(ctx);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('₹${amt.toStringAsFixed(0)} payment recorded for Invoice #${inv.invoiceNumber}! Remaining Balance: ₹${inv.balanceDue.toStringAsFixed(0)}')),
+                  );
+                  setState(() {});
+                }
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
+              child: const Text('Convert & Save Payment'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _showEditEventDialog(BuildContext context, EventModel event) {
@@ -364,7 +463,7 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> with SingleTick
 
                   // Tab Content View
                   SizedBox(
-                    height: 400,
+                    height: 420,
                     child: TabBarView(
                       controller: _tabController,
                       children: [
@@ -703,24 +802,54 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> with SingleTick
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(color: const Color(0xFFE5E7EB)),
                         ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        child: Column(
                           children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text('#${inv.invoiceNumber} • ${inv.customerName}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                                Text('Due: ${inv.dueDate}', style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('#${inv.invoiceNumber} • ${inv.customerName}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                    Text('Due: ${inv.dueDate}', style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
+                                  ],
+                                ),
+                                Text('₹${inv.grandTotal.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF10B981))),
                               ],
                             ),
+                            const Divider(height: 16),
                             Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
                               children: [
-                                Text('₹${inv.grandTotal.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF10B981))),
+                                ElevatedButton.icon(
+                                  onPressed: () => _showRecordPaymentForInvoice(context, inv),
+                                  icon: const Icon(Icons.account_balance_wallet_outlined, size: 14),
+                                  label: const Text('Record Payment', style: TextStyle(fontSize: 11)),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF10B981),
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                    minimumSize: Size.zero,
+                                  ),
+                                ),
                                 const SizedBox(width: 8),
-                                IconButton(
-                                  icon: const Icon(Icons.print_outlined, color: AppTheme.primary, size: 18),
+                                OutlinedButton.icon(
                                   onPressed: () async {
                                     await InvoicePdfService.printInvoice(inv);
+                                  },
+                                  icon: const Icon(Icons.print, size: 14),
+                                  label: const Text('Print / PDF', style: TextStyle(fontSize: 11)),
+                                  style: OutlinedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                    minimumSize: Size.zero,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                IconButton(
+                                  icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
+                                  tooltip: 'Delete Invoice',
+                                  onPressed: () async {
+                                    await repository.deleteInvoice(inv.invoiceNumber);
                                   },
                                 ),
                               ],
