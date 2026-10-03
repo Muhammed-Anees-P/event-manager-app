@@ -112,7 +112,7 @@ class _LoginScreenState extends State<LoginScreen> {
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Invalid username or password. Use "anees" or "mubeen" with "anees@2255"'),
+            content: Text('Invalid username or password'),
             backgroundColor: Colors.red,
           ),
         );
