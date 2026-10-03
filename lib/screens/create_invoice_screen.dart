@@ -5,6 +5,7 @@ import '../data/app_data_repository.dart';
 import '../models/invoice_model.dart';
 import '../models/event_model.dart';
 import '../models/customer_model.dart';
+import '../models/payment_model.dart';
 import '../services/invoice_pdf_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/date_formatter.dart';
@@ -46,6 +47,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   bool _showDiscount = false;
   bool _showTax = false;
   bool _showAdvancePaid = false;
+  bool _showDueDate = true;
 
   late List<InvoiceSection> _sections;
 
@@ -130,6 +132,101 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
     }
   }
 
+  void _showRecordPaymentModal(BuildContext context, InvoiceModel inv) {
+    final double remainingBalance = inv.balanceDue;
+
+    if (remainingBalance <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('This invoice is already fully paid!')),
+      );
+      return;
+    }
+
+    final amountController = TextEditingController(text: remainingBalance.toStringAsFixed(0));
+    String selectedMethod = 'UPI';
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setStateModal) => AlertDialog(
+          title: Text('Record Payment - Invoice #${inv.invoiceNumber}'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Client: ${inv.customerName}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              Text('Grand Total: ₹${inv.grandTotal.toStringAsFixed(0)} • Remaining Balance: ₹${remainingBalance.toStringAsFixed(0)}',
+                  style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+              const SizedBox(height: 12),
+              TextField(
+                controller: amountController,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: 'Payment Amount (Max: ₹${remainingBalance.toStringAsFixed(0)}) *',
+                ),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: selectedMethod,
+                decoration: const InputDecoration(labelText: 'Payment Method'),
+                items: ['UPI', 'Bank Transfer', 'Cash', 'Credit Card']
+                    .map((m) => DropdownMenuItem(value: m, child: Text(m)))
+                    .toList(),
+                onChanged: (v) => setStateModal(() => selectedMethod = v!),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () async {
+                final amt = double.tryParse(amountController.text.trim()) ?? 0.0;
+                if (amt <= 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Please enter a valid payment amount.')),
+                  );
+                  return;
+                }
+                if (amt > remainingBalance) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Payment amount (₹${amt.toStringAsFixed(0)}) cannot exceed remaining balance due of ₹${remainingBalance.toStringAsFixed(0)}.'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                  return;
+                }
+
+                final payment = PaymentModel(
+                  id: DateTime.now().millisecondsSinceEpoch.toString(),
+                  date: AppDateUtils.getTodayDate(),
+                  eventType: 'Invoice #${inv.invoiceNumber} Payment (${inv.customerName})',
+                  amount: amt,
+                  method: selectedMethod,
+                );
+                await repository.addPayment(payment);
+
+                inv.advancePaid = inv.advancePaid + amt;
+                inv.showAdvancePaid = true;
+                await repository.saveInvoice(inv);
+
+                if (ctx.mounted) Navigator.pop(ctx);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('₹${amt.toStringAsFixed(0)} payment recorded for Invoice #${inv.invoiceNumber}! Remaining Balance: ₹${inv.balanceDue.toStringAsFixed(0)}')),
+                  );
+                  setState(() {});
+                }
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
+              child: const Text('Convert & Save Payment'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _resetFormToNew() {
     _customerController.text = '';
     _venueController.text = '';
@@ -153,6 +250,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
     _invoiceDateController.text = invoice.invoiceDate;
     _dueDateController.text = invoice.dueDate;
     _invoiceNumberController.text = invoice.invoiceNumber;
+    _showDueDate = invoice.showDueDate;
 
     _showDiscount = invoice.showDiscount;
     _discountController.text = invoice.discountAmount.toStringAsFixed(0);
@@ -193,6 +291,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
       venue: _venueController.text.trim(),
       invoiceDate: _invoiceDateController.text.trim(),
       dueDate: _dueDateController.text.trim(),
+      showDueDate: _showDueDate,
       sections: _sections,
       showDiscount: _showDiscount,
       discountAmount: double.tryParse(_discountController.text.trim()) ?? 0.0,
@@ -489,6 +588,18 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.end,
                                 children: [
+                                  ElevatedButton.icon(
+                                    onPressed: () => _showRecordPaymentModal(context, inv),
+                                    icon: const Icon(Icons.account_balance_wallet_outlined, size: 14),
+                                    label: const Text('Record Payment', style: TextStyle(fontSize: 11)),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF10B981),
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                      minimumSize: Size.zero,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
                                   OutlinedButton.icon(
                                     onPressed: () => _loadInvoiceForEdit(inv),
                                     icon: const Icon(Icons.edit, size: 16),
@@ -861,6 +972,19 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                     ),
                   ),
 
+                const Divider(),
+
+                Material(
+                  color: Colors.transparent,
+                  child: SwitchListTile(
+                    title: const Text('Show Due Date on PDF (Optional)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                    subtitle: const Text('Enable to display Due Date on PDF and template preview'),
+                    value: _showDueDate,
+                    activeColor: AppTheme.primary,
+                    onChanged: (val) => setState(() => _showDueDate = val),
+                  ),
+                ),
+
                 const SizedBox(height: 16),
 
                 // Calculation Summary Display
@@ -999,11 +1123,15 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                           ),
                         ),
                         const SizedBox(width: 12),
-                        const Column(
+                        Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Haya', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
-                            Text('Event Management', style: TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
+                            Text(repository.companyName, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+                            const Text('making dreams into reality', style: TextStyle(fontSize: 10, color: AppTheme.primaryDark, fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 4),
+                            Text('Address: ${repository.companyAddress}', style: const TextStyle(fontSize: 10, color: Color(0xFF6B7280))),
+                            Text('Phone: ${repository.companyPhone}', style: const TextStyle(fontSize: 10, color: Color(0xFF6B7280))),
+                            Text('Email: ${repository.companyEmail}', style: const TextStyle(fontSize: 10, color: Color(0xFF6B7280))),
                           ],
                         ),
                       ],
@@ -1017,12 +1145,13 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                             color: AppTheme.primary.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(4),
                           ),
-                          child: const Text('TAX INVOICE', style: TextStyle(color: AppTheme.primaryDark, fontSize: 13, fontWeight: FontWeight.bold)),
+                          child: const Text('INVOICE', style: TextStyle(color: AppTheme.primaryDark, fontSize: 13, fontWeight: FontWeight.bold)),
                         ),
                         const SizedBox(height: 6),
                         Text('# ${invoice.invoiceNumber}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                         Text('Date: ${invoice.invoiceDate}', style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
-                        Text('Due Date: ${invoice.dueDate}', style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+                        if (_showDueDate)
+                          Text('Due Date: ${invoice.dueDate}', style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
                       ],
                     ),
                   ],
