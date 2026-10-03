@@ -62,6 +62,7 @@ class InvoiceModel {
 
   bool showAdvancePaid;
   double advancePaid;
+  bool isDeleted;
 
   InvoiceModel({
     required this.invoiceNumber,
@@ -77,6 +78,7 @@ class InvoiceModel {
     this.taxPercentage = 18.0,
     this.showAdvancePaid = false,
     this.advancePaid = 0.0,
+    this.isDeleted = false,
   }) : showDueDate = showDueDate ?? true;
 
   double get rawSubtotal => sections.fold(0, (sum, section) => sum + section.subtotal);

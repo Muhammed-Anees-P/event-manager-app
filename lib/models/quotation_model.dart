@@ -16,6 +16,7 @@ class QuotationModel {
   bool showAdvancePaid;
   double advancePaid;
   String status;
+  bool isDeleted;
 
   QuotationModel({
     required this.id,
@@ -34,6 +35,7 @@ class QuotationModel {
     this.showAdvancePaid = false,
     this.advancePaid = 0.0,
     this.status = 'Sent',
+    this.isDeleted = false,
   }) : quotationDate = quotationDate ?? date ?? '12 Sep 2026';
 
   String get date => quotationDate;

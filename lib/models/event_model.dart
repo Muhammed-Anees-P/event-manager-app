@@ -29,6 +29,7 @@ class EventModel {
   double amountReceived;
   final String? imageUrl;
   final List<String> services;
+  bool isDeleted;
 
   EventModel({
     required this.id,
@@ -44,6 +45,7 @@ class EventModel {
     required this.amountReceived,
     this.imageUrl,
     List<String>? services,
+    this.isDeleted = false,
   }) : services = services ?? [];
 
   double get outstanding => (contractValue - amountReceived).clamp(0, double.infinity);

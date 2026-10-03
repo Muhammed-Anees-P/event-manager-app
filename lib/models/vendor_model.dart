@@ -1,10 +1,11 @@
 class VendorModel {
   final String id;
   final String name;
-  final String category; // Catering, Photography, Decor, Sound & Lighting, Florist
+  final String category;
   final String phone;
   final String email;
   final String rating;
+  bool isDeleted;
 
   VendorModel({
     required this.id,
@@ -13,5 +14,6 @@ class VendorModel {
     required this.phone,
     required this.email,
     required this.rating,
+    this.isDeleted = false,
   });
 }

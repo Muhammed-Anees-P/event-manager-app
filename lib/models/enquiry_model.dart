@@ -23,8 +23,9 @@ class EnquiryModel {
   final String totalDate;
   final double amount;
   final EnquiryStatus status;
+  bool isDeleted;
 
-  const EnquiryModel({
+  EnquiryModel({
     required this.id,
     required this.name,
     this.phone = '',
@@ -32,5 +33,6 @@ class EnquiryModel {
     required this.totalDate,
     required this.amount,
     required this.status,
+    this.isDeleted = false,
   });
 }

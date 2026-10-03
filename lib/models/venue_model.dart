@@ -5,6 +5,7 @@ class VenueModel {
   final int capacity;
   final double pricePerDay;
   final String contactPerson;
+  bool isDeleted;
 
   VenueModel({
     required this.id,
@@ -13,5 +14,6 @@ class VenueModel {
     required this.capacity,
     required this.pricePerDay,
     required this.contactPerson,
+    this.isDeleted = false,
   });
 }

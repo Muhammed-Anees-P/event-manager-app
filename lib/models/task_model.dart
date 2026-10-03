@@ -16,10 +16,11 @@ extension TaskPriorityExtension on TaskPriority {
 class TaskModel {
   final String id;
   String title;
-  final String eventTitle;
+  String eventTitle;
   TaskPriority priority;
   bool isCompleted;
   String category;
+  bool isDeleted;
 
   TaskModel({
     required this.id,
@@ -28,5 +29,6 @@ class TaskModel {
     required this.priority,
     this.isCompleted = false,
     this.category = 'Today',
+    this.isDeleted = false,
   });
 }
