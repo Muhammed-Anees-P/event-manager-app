@@ -1,10 +1,11 @@
 class ExpenseModel {
   final String id;
   final String title;
-  final String category; // Logistics, Catering, Decor, Marketing, Equipment
+  final String category;
   final double amount;
   final String date;
   final String paymentMethod;
+  bool isDeleted;
 
   ExpenseModel({
     required this.id,
@@ -13,5 +14,6 @@ class ExpenseModel {
     required this.amount,
     required this.date,
     required this.paymentMethod,
+    this.isDeleted = false,
   });
 }
