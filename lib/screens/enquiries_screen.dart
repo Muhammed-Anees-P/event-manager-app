@@ -70,6 +70,7 @@ class _EnquiriesScreenState extends State<EnquiriesScreen> {
   Widget build(BuildContext context) {
     List<EnquiryModel> filteredEnquiries = repository.enquiries.where((e) {
       final matchesSearch = e.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+          e.phone.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           e.type.toLowerCase().contains(_searchQuery.toLowerCase());
       if (!matchesSearch) return false;
 
@@ -101,7 +102,7 @@ class _EnquiriesScreenState extends State<EnquiriesScreen> {
                         child: TextField(
                           onChanged: (val) => setState(() => _searchQuery = val),
                           decoration: InputDecoration(
-                            hintText: 'Search enquiries by client name or event type...',
+                            hintText: 'Search enquiries by client name, phone or type...',
                             hintStyle: const TextStyle(fontSize: 13, color: Color(0xFF9CA3AF)),
                             prefixIcon: const Icon(Icons.search, size: 20, color: Color(0xFF9CA3AF)),
                             filled: true,
@@ -212,7 +213,7 @@ class _EnquiriesScreenState extends State<EnquiriesScreen> {
                                     children: [
                                       Text(enquiry.name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
                                       const SizedBox(height: 2),
-                                      Text('${enquiry.type} • ${enquiry.totalDate}', style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+                                      Text('${enquiry.phone} • ${enquiry.type} • ${enquiry.totalDate}', style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
                                     ],
                                   ),
                                 ),
@@ -248,6 +249,7 @@ class _EnquiriesScreenState extends State<EnquiriesScreen> {
                                             final updated = EnquiryModel(
                                               id: enquiry.id,
                                               name: enquiry.name,
+                                              phone: enquiry.phone,
                                               type: enquiry.type,
                                               totalDate: enquiry.totalDate,
                                               amount: enquiry.amount,
@@ -360,7 +362,7 @@ class _EnquiryDetailsModal extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(enquiry.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
-                      Text(enquiry.type, style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+                      Text(enquiry.phone, style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
                     ],
                   ),
                 ],
@@ -370,6 +372,10 @@ class _EnquiryDetailsModal extends StatelessWidget {
           ),
           const Divider(height: 24),
 
+          _buildInfoRow('Client Name', enquiry.name),
+          const SizedBox(height: 8),
+          _buildInfoRow('Contact Phone', enquiry.phone),
+          const SizedBox(height: 8),
           _buildInfoRow('Event Type', enquiry.type),
           const SizedBox(height: 8),
           _buildInfoRow('Enquiry Date', enquiry.totalDate),
@@ -388,7 +394,7 @@ class _EnquiryDetailsModal extends StatelessWidget {
                 child: OutlinedButton.icon(
                   onPressed: () {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Calling support hotline +91 9747451938')),
+                      SnackBar(content: Text('Calling ${enquiry.name} (${enquiry.phone})...')),
                     );
                   },
                   icon: const Icon(Icons.phone, size: 16),
@@ -400,7 +406,7 @@ class _EnquiryDetailsModal extends StatelessWidget {
                 child: ElevatedButton.icon(
                   onPressed: () {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Opening WhatsApp chat...')),
+                      SnackBar(content: Text('Opening WhatsApp chat for ${enquiry.phone}...')),
                     );
                   },
                   icon: const Icon(Icons.chat, size: 16),
@@ -439,6 +445,7 @@ class _EditEnquiryModal extends StatefulWidget {
 class _EditEnquiryModalState extends State<_EditEnquiryModal> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController nameController;
+  late TextEditingController phoneController;
   late TextEditingController amountController;
   late String selectedType;
   late EnquiryStatus selectedStatus;
@@ -447,6 +454,7 @@ class _EditEnquiryModalState extends State<_EditEnquiryModal> {
   void initState() {
     super.initState();
     nameController = TextEditingController(text: widget.enquiry.name);
+    phoneController = TextEditingController(text: widget.enquiry.phone);
     amountController = TextEditingController(text: widget.enquiry.amount.toStringAsFixed(0));
     selectedType = widget.enquiry.type;
     selectedStatus = widget.enquiry.status;
@@ -455,6 +463,7 @@ class _EditEnquiryModalState extends State<_EditEnquiryModal> {
   @override
   void dispose() {
     nameController.dispose();
+    phoneController.dispose();
     amountController.dispose();
     super.dispose();
   }
@@ -484,8 +493,14 @@ class _EditEnquiryModalState extends State<_EditEnquiryModal> {
             const SizedBox(height: 12),
             TextFormField(
               controller: nameController,
-              decoration: const InputDecoration(labelText: 'Client / Contact Name'),
+              decoration: const InputDecoration(labelText: 'Client / Contact Name *'),
               validator: (v) => v == null || v.trim().isEmpty ? 'Please enter name' : null,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: phoneController,
+              decoration: const InputDecoration(labelText: 'Contact Phone Number *'),
+              validator: (v) => v == null || v.trim().isEmpty ? 'Please enter phone' : null,
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
@@ -522,6 +537,7 @@ class _EditEnquiryModalState extends State<_EditEnquiryModal> {
                     final updated = EnquiryModel(
                       id: widget.enquiry.id,
                       name: nameController.text.trim(),
+                      phone: phoneController.text.trim(),
                       type: selectedType,
                       totalDate: widget.enquiry.totalDate,
                       amount: double.tryParse(amountController.text.trim()) ?? 0,
@@ -553,6 +569,7 @@ class _CreateEnquiryModal extends StatefulWidget {
 class _CreateEnquiryModalState extends State<_CreateEnquiryModal> {
   final _formKey = GlobalKey<FormState>();
   final nameController = TextEditingController();
+  final phoneController = TextEditingController();
   final amountController = TextEditingController();
   String selectedType = 'Wedding';
   EnquiryStatus selectedStatus = EnquiryStatus.newEnquiry;
@@ -560,6 +577,7 @@ class _CreateEnquiryModalState extends State<_CreateEnquiryModal> {
   @override
   void dispose() {
     nameController.dispose();
+    phoneController.dispose();
     amountController.dispose();
     super.dispose();
   }
@@ -589,8 +607,14 @@ class _CreateEnquiryModalState extends State<_CreateEnquiryModal> {
             const SizedBox(height: 12),
             TextFormField(
               controller: nameController,
-              decoration: const InputDecoration(labelText: 'Client / Contact Name'),
+              decoration: const InputDecoration(labelText: 'Client / Contact Name *'),
               validator: (v) => v == null || v.trim().isEmpty ? 'Please enter a name' : null,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: phoneController,
+              decoration: const InputDecoration(labelText: 'Contact Phone Number *'),
+              validator: (v) => v == null || v.trim().isEmpty ? 'Please enter phone' : null,
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
@@ -605,7 +629,7 @@ class _CreateEnquiryModalState extends State<_CreateEnquiryModal> {
             TextFormField(
               controller: amountController,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Estimated Budget (₹)'),
+              decoration: const InputDecoration(labelText: 'Estimated Budget (₹) *'),
               validator: (v) => v == null || v.trim().isEmpty ? 'Please enter budget' : null,
             ),
             const SizedBox(height: 12),
@@ -627,6 +651,7 @@ class _CreateEnquiryModalState extends State<_CreateEnquiryModal> {
                     final enquiry = EnquiryModel(
                       id: DateTime.now().millisecondsSinceEpoch.toString(),
                       name: nameController.text.trim(),
+                      phone: phoneController.text.trim(),
                       type: selectedType,
                       totalDate: '12 Sep 2026',
                       amount: double.tryParse(amountController.text.trim()) ?? 0,
