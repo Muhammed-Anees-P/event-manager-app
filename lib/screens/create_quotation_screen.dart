@@ -5,6 +5,7 @@ import '../models/invoice_model.dart';
 import '../models/quotation_model.dart';
 import '../services/quotation_pdf_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/date_formatter.dart';
 
 class CreateQuotationScreen extends StatefulWidget {
   final VoidCallback? onBack;
@@ -57,7 +58,7 @@ class _CreateQuotationScreenState extends State<CreateQuotationScreen> {
   void _resetFormToNew() {
     _customerController.text = '';
     _venueController.text = '';
-    _quotationDateController.text = '12 Sep 2026';
+    _quotationDateController.text = AppDateUtils.getTodayDate();
     _quoteNumberController.text = 'QT-2026-00${repository.quotations.length + 1}';
     _eventTypeController.text = 'Wedding Event';
 
