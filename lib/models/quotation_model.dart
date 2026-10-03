@@ -22,7 +22,8 @@ class QuotationModel {
     required this.quoteNumber,
     required this.customerName,
     required this.venue,
-    required this.quotationDate,
+    String? quotationDate,
+    String? date,
     required this.dueDate,
     this.eventType = 'Wedding Event',
     required this.sections,
@@ -33,7 +34,9 @@ class QuotationModel {
     this.showAdvancePaid = false,
     this.advancePaid = 0.0,
     this.status = 'Sent',
-  });
+  }) : quotationDate = quotationDate ?? date ?? '12 Sep 2026';
+
+  String get date => quotationDate;
 
   double get rawSubtotal => sections.fold(0, (sum, section) => sum + section.subtotal);
   double get calculatedDiscount => showDiscount ? discountAmount : 0.0;
