@@ -15,11 +15,11 @@ extension TaskPriorityExtension on TaskPriority {
 
 class TaskModel {
   final String id;
-  final String title;
+  String title;
   final String eventTitle;
-  final TaskPriority priority;
+  TaskPriority priority;
   bool isCompleted;
-  final String category; // e.g. Today, Upcoming, Completed
+  String category;
 
   TaskModel({
     required this.id,
