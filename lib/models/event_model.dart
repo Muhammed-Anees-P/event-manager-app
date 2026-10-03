@@ -24,9 +24,9 @@ class EventModel {
   final String venue;
   final int guests;
   final String manager;
-  final EventStatus status;
+  EventStatus status;
   final double contractValue;
-  final double amountReceived;
+  double amountReceived;
   final String? imageUrl;
   final List<String> services;
 
@@ -46,7 +46,7 @@ class EventModel {
     List<String>? services,
   }) : services = services ?? [];
 
-  double get outstanding => contractValue - amountReceived;
-  double get paymentProgress => contractValue > 0 ? (amountReceived / contractValue) : 0;
+  double get outstanding => (contractValue - amountReceived).clamp(0, double.infinity);
+  double get paymentProgress => contractValue > 0 ? (amountReceived / contractValue).clamp(0, 1.0) : 0;
   int get paymentPercentage => (paymentProgress * 100).round();
 }
