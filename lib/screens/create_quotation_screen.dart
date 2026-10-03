@@ -61,20 +61,7 @@ class _CreateQuotationScreenState extends State<CreateQuotationScreen> {
     _quoteNumberController.text = 'QT-2026-00${repository.quotations.length + 1}';
     _eventTypeController.text = 'Wedding Event';
 
-    _sections = [
-      InvoiceSection(
-        heading: 'Catering & Refreshments',
-        items: [
-          InvoiceItem(name: 'Buffet Spread', qty: 250, rate: 1200, price: 300000),
-        ],
-      ),
-      InvoiceSection(
-        heading: 'Decor & Services',
-        items: [
-          InvoiceItem(name: 'Floral Entrance Setup', price: 50000),
-        ],
-      ),
-    ];
+    _sections = []; // Empty sections list for fresh quotation creation
   }
 
   void _loadQuotationForEdit(QuotationModel quotation) {
