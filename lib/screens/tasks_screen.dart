@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../data/app_data_repository.dart';
 import '../models/task_model.dart';
 import '../theme/app_theme.dart';
+import '../widgets/delete_confirmation_dialog.dart';
 
 class TasksScreen extends StatefulWidget {
   const TasksScreen({super.key});
@@ -41,9 +42,20 @@ class _TasksScreenState extends State<TasksScreen> {
     if (mounted) setState(() {});
   }
 
+  void _showEditTaskModal(BuildContext context, TaskModel task) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => _EditTaskModal(task: task),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    List<TaskModel> filteredTasks = repository.tasks.where((t) {
+    List<TaskModel> filteredTasks = repository.activeTasks.where((t) {
       if (_selectedFilter == 'Today') {
         return !t.isCompleted;
       } else if (_selectedFilter == 'Upcoming') {
@@ -152,6 +164,26 @@ class _TasksScreenState extends State<TasksScreen> {
                               ),
                             ),
                             _buildPriorityBadge(task.priority),
+                            const SizedBox(width: 6),
+                            IconButton(
+                              icon: const Icon(Icons.edit_outlined, color: Color(0xFF4B5563), size: 18),
+                              tooltip: 'Edit Task',
+                              onPressed: () => _showEditTaskModal(context, task),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
+                              tooltip: 'Delete Task',
+                              onPressed: () async {
+                                final confirm = await AppDeleteConfirmationDialog.show(
+                                  context,
+                                  title: 'Delete Task',
+                                  itemDetails: 'Task: ${task.title} (${task.eventTitle})',
+                                );
+                                if (confirm) {
+                                  await repository.deleteTask(task.id);
+                                }
+                              },
+                            ),
                           ],
                         ),
                       );
@@ -196,6 +228,111 @@ class _TasksScreenState extends State<TasksScreen> {
   }
 }
 
+class _EditTaskModal extends StatefulWidget {
+  final TaskModel task;
+
+  const _EditTaskModal({required this.task});
+
+  @override
+  State<_EditTaskModal> createState() => _EditTaskModalState();
+}
+
+class _EditTaskModalState extends State<_EditTaskModal> {
+  final _formKey = GlobalKey<FormState>();
+  late TextEditingController titleController;
+  late String selectedEvent;
+  late TaskPriority selectedPriority;
+
+  @override
+  void initState() {
+    super.initState();
+    titleController = TextEditingController(text: widget.task.title);
+    selectedEvent = widget.task.eventTitle;
+    selectedPriority = widget.task.priority;
+  }
+
+  @override
+  void dispose() {
+    titleController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final activeEvents = AppDataRepository.instance.activeEvents;
+    final List<String> eventTitles = activeEvents.map((e) => e.title).where((t) => t.trim().isNotEmpty).toSet().toList();
+
+    if (!eventTitles.contains(selectedEvent)) {
+      eventTitles.add(selectedEvent);
+    }
+
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+        left: 20,
+        right: 20,
+        top: 20,
+      ),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Edit Task Details', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: titleController,
+              decoration: const InputDecoration(labelText: 'Task Title *'),
+              validator: (v) => v == null || v.trim().isEmpty ? 'Please enter task title' : null,
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              value: selectedEvent,
+              decoration: const InputDecoration(labelText: 'Assigned Event'),
+              items: eventTitles.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
+              onChanged: (v) => setState(() => selectedEvent = v!),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<TaskPriority>(
+              value: selectedPriority,
+              decoration: const InputDecoration(labelText: 'Priority'),
+              items: TaskPriority.values
+                  .map((p) => DropdownMenuItem(value: p, child: Text(p.displayName)))
+                  .toList(),
+              onChanged: (v) => setState(() => selectedPriority = v!),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton(
+                onPressed: () {
+                  if (_formKey.currentState!.validate()) {
+                    widget.task.title = titleController.text.trim();
+                    widget.task.eventTitle = selectedEvent;
+                    widget.task.priority = selectedPriority;
+                    AppDataRepository.instance.notifyListeners();
+                    Navigator.pop(context);
+                  }
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
+                child: const Text('Update Task'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _CreateTaskModal extends StatefulWidget {
   const _CreateTaskModal();
 
@@ -206,7 +343,7 @@ class _CreateTaskModal extends StatefulWidget {
 class _CreateTaskModalState extends State<_CreateTaskModal> {
   final _formKey = GlobalKey<FormState>();
   final titleController = TextEditingController();
-  String selectedEvent = 'Wedding - Rahul & Priya';
+  String selectedEvent = '';
   TaskPriority selectedPriority = TaskPriority.high;
 
   @override
@@ -217,9 +354,18 @@ class _CreateTaskModalState extends State<_CreateTaskModal> {
 
   @override
   Widget build(BuildContext context) {
-    final eventTitles = AppDataRepository.instance.events.map((e) => e.title).toList();
-    if (eventTitles.isNotEmpty && !eventTitles.contains(selectedEvent)) {
-      selectedEvent = eventTitles.first;
+    final activeEvents = AppDataRepository.instance.activeEvents;
+    final List<String> eventTitles = activeEvents.map((e) => e.title).where((t) => t.trim().isNotEmpty).toSet().toList();
+
+    if (eventTitles.isNotEmpty) {
+      if (selectedEvent.isEmpty || !eventTitles.contains(selectedEvent)) {
+        selectedEvent = eventTitles.first;
+      }
+    } else {
+      selectedEvent = 'General Task';
+      if (!eventTitles.contains('General Task')) {
+        eventTitles.add('General Task');
+      }
     }
 
     return Padding(
@@ -248,17 +394,16 @@ class _CreateTaskModalState extends State<_CreateTaskModal> {
             const SizedBox(height: 12),
             TextFormField(
               controller: titleController,
-              decoration: const InputDecoration(labelText: 'Task Title'),
+              decoration: const InputDecoration(labelText: 'Task Title *'),
               validator: (v) => v == null || v.trim().isEmpty ? 'Please enter task title' : null,
             ),
             const SizedBox(height: 12),
-            if (eventTitles.isNotEmpty)
-              DropdownButtonFormField<String>(
-                value: selectedEvent,
-                decoration: const InputDecoration(labelText: 'Assigned Event'),
-                items: eventTitles.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-                onChanged: (v) => setState(() => selectedEvent = v!),
-              ),
+            DropdownButtonFormField<String>(
+              value: selectedEvent,
+              decoration: const InputDecoration(labelText: 'Assigned Event'),
+              items: eventTitles.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
+              onChanged: (v) => setState(() => selectedEvent = v!),
+            ),
             const SizedBox(height: 12),
             DropdownButtonFormField<TaskPriority>(
               value: selectedPriority,
