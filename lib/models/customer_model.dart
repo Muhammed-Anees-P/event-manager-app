@@ -1,15 +1,17 @@
 class CustomerModel {
   final String id;
-  final String name;
-  final String email;
-  final String phone;
-  final int totalEvents;
+  String name;
+  String email;
+  String phone;
+  int totalEvents;
+  bool isDeleted;
 
-  const CustomerModel({
+  CustomerModel({
     required this.id,
     required this.name,
     required this.email,
     required this.phone,
     required this.totalEvents,
+    this.isDeleted = false,
   });
 }
