@@ -6,6 +6,7 @@ import '../models/quotation_model.dart';
 import '../services/quotation_pdf_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/date_formatter.dart';
+import '../widgets/delete_confirmation_dialog.dart';
 
 class CreateQuotationScreen extends StatefulWidget {
   final VoidCallback? onBack;
@@ -238,7 +239,7 @@ class _CreateQuotationScreenState extends State<CreateQuotationScreen> {
 
   // TAB 1: ALL QUOTATIONS LIST
   Widget _buildAllQuotationsTab() {
-    final quotations = repository.quotations;
+    final quotations = repository.activeQuotations;
 
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -353,6 +354,21 @@ class _CreateQuotationScreenState extends State<CreateQuotationScreen> {
                               },
                               icon: const Icon(Icons.print, size: 16),
                               label: const Text('Print / PDF'),
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
+                              tooltip: 'Delete Quotation',
+                              onPressed: () async {
+                                final confirm = await AppDeleteConfirmationDialog.show(
+                                  context,
+                                  title: 'Delete Quotation',
+                                  itemDetails: 'Quotation #${q.quoteNumber} - ${q.customerName} (₹${q.totalAmount.toStringAsFixed(0)})',
+                                );
+                                if (confirm) {
+                                  await repository.deleteQuotation(q.id);
+                                }
+                              },
                             ),
                           ],
                         ),

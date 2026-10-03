@@ -9,6 +9,7 @@ import '../models/payment_model.dart';
 import '../services/invoice_pdf_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/date_formatter.dart';
+import '../widgets/delete_confirmation_dialog.dart';
 
 class CreateInvoiceScreen extends StatefulWidget {
   final VoidCallback? onBack;
@@ -435,10 +436,10 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   // ============================================================
 
   Widget _buildAllInvoicesTab() {
-    final customerNames = ['All', ...repository.customers.map((c) => c.name)];
+    final customerNames = ['All', ...repository.activeCustomers.map((c) => c.name)];
     final statuses = ['All', 'Pending', 'Partially Paid', 'Paid'];
 
-    final filteredInvoices = repository.invoices.where((inv) {
+    final filteredInvoices = repository.activeInvoices.where((inv) {
       if (_invoiceCustomerFilter != 'All' && inv.customerName.toLowerCase() != _invoiceCustomerFilter.toLowerCase()) {
         return false;
       }
@@ -618,22 +619,12 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                                     icon: const Icon(Icons.delete_outline, color: Colors.red),
                                     tooltip: 'Delete Invoice',
                                     onPressed: () async {
-                                      final confirm = await showDialog<bool>(
-                                        context: context,
-                                        builder: (ctx) => AlertDialog(
-                                          title: const Text('Delete Invoice'),
-                                          content: Text('Are you sure you want to delete Invoice #${inv.invoiceNumber}?'),
-                                          actions: [
-                                            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-                                            ElevatedButton(
-                                              onPressed: () => Navigator.pop(ctx, true),
-                                              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                                              child: const Text('Delete'),
-                                            ),
-                                          ],
-                                        ),
+                                      final confirm = await AppDeleteConfirmationDialog.show(
+                                        context,
+                                        title: 'Delete Invoice',
+                                        itemDetails: 'Invoice #${inv.invoiceNumber} - ${inv.customerName} (₹${inv.grandTotal.toStringAsFixed(0)})',
                                       );
-                                      if (confirm == true) {
+                                      if (confirm) {
                                         await repository.deleteInvoice(inv.invoiceNumber);
                                       }
                                     },
@@ -1127,7 +1118,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(repository.companyName, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
-                            const Text('making dreams into reality', style: TextStyle(fontSize: 10, color: AppTheme.primaryDark, fontWeight: FontWeight.bold)),
+                            const Text('Making dreams into reality', style: TextStyle(fontSize: 10, color: AppTheme.primaryDark, fontWeight: FontWeight.bold)),
                             const SizedBox(height: 4),
                             Text('Address: ${repository.companyAddress}', style: const TextStyle(fontSize: 10, color: Color(0xFF6B7280))),
                             Text('Phone: ${repository.companyPhone}', style: const TextStyle(fontSize: 10, color: Color(0xFF6B7280))),
