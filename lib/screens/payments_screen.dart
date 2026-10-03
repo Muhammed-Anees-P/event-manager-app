@@ -6,6 +6,7 @@ import '../models/app_notification_model.dart';
 import '../services/cash_receipt_pdf_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/date_formatter.dart';
+import '../widgets/delete_confirmation_dialog.dart';
 
 class PaymentsScreen extends StatefulWidget {
   const PaymentsScreen({super.key});
@@ -118,7 +119,7 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
     final customerNames = ['All', ...repository.customers.map((c) => c.name)];
     final methods = ['All', 'UPI', 'Bank Transfer', 'Cash', 'Credit Card'];
 
-    final filteredPayments = repository.payments.where((p) {
+    final filteredPayments = repository.activePayments.where((p) {
       if (_selectedCustomerFilter != 'All' && !p.eventType.toLowerCase().contains(_selectedCustomerFilter.toLowerCase())) {
         return false;
       }
@@ -158,7 +159,7 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
                       const Text('Total Payments Collected', style: TextStyle(color: Colors.white70, fontSize: 13)),
                       const SizedBox(height: 6),
                       Text(
-                        '₹${repository.totalRevenue.toStringAsFixed(0)}',
+                        '₹${repository.totalPaymentsCollected.toStringAsFixed(0)}',
                         style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
                       ),
                     ],
@@ -285,7 +286,16 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
                                       IconButton(
                                         icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
                                         tooltip: 'Delete Payment',
-                                        onPressed: () => repository.deletePayment(p.id),
+                                        onPressed: () async {
+                                          final confirm = await AppDeleteConfirmationDialog.show(
+                                            context,
+                                            title: 'Delete Payment Transaction',
+                                            itemDetails: '${p.eventType} - ₹${p.amount.toStringAsFixed(0)} (${p.method})',
+                                          );
+                                          if (confirm) {
+                                            await repository.deletePayment(p.id);
+                                          }
+                                        },
                                         constraints: const BoxConstraints(),
                                         padding: const EdgeInsets.symmetric(horizontal: 4),
                                       ),

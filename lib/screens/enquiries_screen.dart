@@ -3,6 +3,7 @@ import '../data/app_data_repository.dart';
 import '../models/enquiry_model.dart';
 import '../theme/app_theme.dart';
 import '../utils/date_formatter.dart';
+import '../widgets/delete_confirmation_dialog.dart';
 
 class EnquiriesScreen extends StatefulWidget {
   const EnquiriesScreen({super.key});
@@ -69,7 +70,7 @@ class _EnquiriesScreenState extends State<EnquiriesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    List<EnquiryModel> filteredEnquiries = repository.enquiries.where((e) {
+    List<EnquiryModel> filteredEnquiries = repository.activeEnquiries.where((e) {
       final matchesSearch = e.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           e.phone.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           e.type.toLowerCase().contains(_searchQuery.toLowerCase());
@@ -279,7 +280,14 @@ class _EnquiriesScreenState extends State<EnquiriesScreen> {
                                       icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
                                       tooltip: 'Delete Enquiry',
                                       onPressed: () async {
-                                        await repository.deleteEnquiry(enquiry.id);
+                                        final confirm = await AppDeleteConfirmationDialog.show(
+                                          context,
+                                          title: 'Delete Enquiry',
+                                          itemDetails: 'Client: ${enquiry.name} (${enquiry.type})',
+                                        );
+                                        if (confirm) {
+                                          await repository.deleteEnquiry(enquiry.id);
+                                        }
                                       },
                                     ),
                                   ],

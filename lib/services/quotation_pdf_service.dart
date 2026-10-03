@@ -96,7 +96,7 @@ class QuotationPdfService {
                             ),
                             pw.SizedBox(height: 2),
                             pw.Text(
-                              'making dreams into reality',
+                              'Making dreams into reality',
                               style: pw.TextStyle(
                                 fontSize: 9,
                                 color: goldColor,
@@ -316,7 +316,7 @@ class QuotationPdfService {
                 pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.end,
                   children: [
-                    pw.Text('making dreams into reality',
+                    pw.Text('Making dreams into reality',
                         style: pw.TextStyle(fontSize: 9, fontStyle: pw.FontStyle.italic, color: goldColor)),
                   ],
                 ),

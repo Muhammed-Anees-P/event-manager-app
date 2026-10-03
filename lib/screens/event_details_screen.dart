@@ -7,6 +7,7 @@ import '../models/payment_model.dart';
 import '../services/invoice_pdf_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/date_formatter.dart';
+import '../widgets/delete_confirmation_dialog.dart';
 import 'create_invoice_screen.dart';
 import 'tasks_screen.dart';
 
@@ -232,26 +233,16 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> with SingleTick
     );
   }
 
-  void _confirmDeleteEvent(BuildContext context, EventModel event) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete Event'),
-        content: Text('Are you sure you want to delete ${event.title}?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () async {
-              await repository.deleteEvent(event.id);
-              if (ctx.mounted) Navigator.pop(ctx);
-              widget.onBack();
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+  void _confirmDeleteEvent(BuildContext context, EventModel event) async {
+    final confirm = await AppDeleteConfirmationDialog.show(
+      context,
+      title: 'Delete Event',
+      itemDetails: 'Event: ${event.title} (${event.venue})',
     );
+    if (confirm) {
+      await repository.deleteEvent(event.id);
+      widget.onBack();
+    }
   }
 
   void _showEditTaskDialog(BuildContext context, TaskModel task) {
@@ -876,7 +867,14 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> with SingleTick
                                   icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
                                   tooltip: 'Delete Invoice',
                                   onPressed: () async {
-                                    await repository.deleteInvoice(inv.invoiceNumber);
+                                    final confirm = await AppDeleteConfirmationDialog.show(
+                                      context,
+                                      title: 'Delete Invoice',
+                                      itemDetails: 'Invoice #${inv.invoiceNumber} - ${inv.customerName}',
+                                    );
+                                    if (confirm) {
+                                      await repository.deleteInvoice(inv.invoiceNumber);
+                                    }
                                   },
                                 ),
                               ],

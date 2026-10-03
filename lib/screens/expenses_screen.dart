@@ -3,6 +3,7 @@ import '../data/app_data_repository.dart';
 import '../models/expense_model.dart';
 import '../theme/app_theme.dart';
 import '../utils/date_formatter.dart';
+import '../widgets/delete_confirmation_dialog.dart';
 
 class ExpensesScreen extends StatefulWidget {
   const ExpensesScreen({super.key});
@@ -43,7 +44,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final expenses = repository.expenses;
+    final expenses = repository.activeExpenses;
 
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -90,6 +91,21 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                           const SizedBox(height: 2),
                           Text(e.paymentMethod, style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
                         ],
+                      ),
+                      const SizedBox(width: 6),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
+                        tooltip: 'Delete Expense',
+                        onPressed: () async {
+                          final confirm = await AppDeleteConfirmationDialog.show(
+                            context,
+                            title: 'Delete Expense',
+                            itemDetails: '${e.title} - ₹${e.amount.toStringAsFixed(0)} (${e.category})',
+                          );
+                          if (confirm) {
+                            await repository.deleteExpense(e.id);
+                          }
+                        },
                       ),
                     ],
                   ),
