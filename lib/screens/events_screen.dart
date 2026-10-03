@@ -50,7 +50,7 @@ class _EventsScreenState extends State<EventsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    List<EventModel> filteredEvents = repository.events.where((e) {
+    List<EventModel> filteredEvents = repository.activeEvents.where((e) {
       final matchesSearch = e.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           e.venue.toLowerCase().contains(_searchQuery.toLowerCase());
       if (!matchesSearch) return false;
@@ -311,7 +311,7 @@ class _CreateEventModalState extends State<_CreateEventModal> {
   final contractController = TextEditingController(text: '250000');
   final receivedController = TextEditingController(text: '50000');
 
-  String selectedCustomer = 'Sneha Kapoor';
+  String? selectedCustomer;
   EventStatus selectedStatus = EventStatus.planning;
 
   Future<void> _pickDate() async {
@@ -344,9 +344,9 @@ class _CreateEventModalState extends State<_CreateEventModal> {
 
   @override
   Widget build(BuildContext context) {
-    final customers = AppDataRepository.instance.customers.map((c) => c.name).toList();
-    if (customers.isNotEmpty && !customers.contains(selectedCustomer)) {
-      selectedCustomer = customers.first;
+    final customers = AppDataRepository.instance.activeCustomers.map((c) => c.name).toList();
+    if (selectedCustomer == null || (customers.isNotEmpty && !customers.contains(selectedCustomer))) {
+      selectedCustomer = customers.isNotEmpty ? customers.first : 'Walk-in Customer';
     }
     final venues = AppDataRepository.instance.venues;
     if (venues.isNotEmpty && venueController.text.isEmpty) {
@@ -484,7 +484,7 @@ class _CreateEventModalState extends State<_CreateEventModal> {
                         time: timeController.text.trim(),
                         venue: venueController.text.trim(),
                         guests: int.tryParse(guestsController.text.trim()) ?? 100,
-                        manager: selectedCustomer,
+                        manager: selectedCustomer ?? 'Walk-in Customer',
                         status: selectedStatus,
                         contractValue: double.tryParse(contractController.text.trim()) ?? 0,
                         amountReceived: double.tryParse(receivedController.text.trim()) ?? 0,
