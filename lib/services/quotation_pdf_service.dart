@@ -8,7 +8,11 @@ import '../data/app_data_repository.dart';
 class QuotationPdfService {
   static Future<void> printQuotation(QuotationModel quotation) async {
     final pdfBytes = await generatePdfBytes(quotation);
-    await Printing.layoutPdf(onLayout: (format) async => pdfBytes);
+    await Printing.layoutPdf(
+      onLayout: (format) async => pdfBytes,
+      name: 'Quotation_${quotation.quoteNumber}.pdf',
+      format: PdfPageFormat.a4,
+    );
   }
 
   static Future<Uint8List> generatePdfBytes(QuotationModel quotation) async {
@@ -32,14 +36,14 @@ class QuotationPdfService {
       pw.MultiPage(
         pageTheme: pw.PageTheme(
           pageFormat: PdfPageFormat.a4,
-          margin: const pw.EdgeInsets.all(36),
+          margin: const pw.EdgeInsets.symmetric(horizontal: 24, vertical: 28),
           buildBackground: (context) {
             if (logoImage == null) return pw.SizedBox();
             return pw.FullPage(
               ignoreMargins: true,
               child: pw.Center(
                 child: pw.Opacity(
-                  opacity: 0.08,
+                  opacity: 0.06,
                   child: pw.Image(logoImage, width: 380, height: 380),
                 ),
               ),
@@ -48,70 +52,77 @@ class QuotationPdfService {
         ),
         build: (pw.Context context) {
           return [
-            // Luxury Header & Logo Image
+            // Header & Logo Image
             pw.Row(
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
-                pw.Row(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    if (logoImage != null)
-                      pw.Container(
-                        width: 75,
-                        height: 75,
-                        child: pw.Image(logoImage),
-                      )
-                    else
-                      pw.Container(
-                        width: 44,
-                        height: 44,
-                        decoration: pw.BoxDecoration(
-                          shape: pw.BoxShape.circle,
-                          border: pw.Border.all(color: goldColor, width: 2),
-                          color: primaryColor,
+                pw.Expanded(
+                  child: pw.Row(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      if (logoImage != null)
+                        pw.Container(
+                          width: 70,
+                          height: 75,
+                          child: pw.Image(logoImage),
+                        )
+                      else
+                        pw.Container(
+                          width: 44,
+                          height: 44,
+                          decoration: pw.BoxDecoration(
+                            shape: pw.BoxShape.circle,
+                            border: pw.Border.all(color: goldColor, width: 2),
+                            color: primaryColor,
+                          ),
+                          child: pw.Center(
+                            child: pw.Text('H', style: pw.TextStyle(color: goldColor, fontSize: 22, fontWeight: pw.FontWeight.bold)),
+                          ),
                         ),
-                        child: pw.Center(
-                          child: pw.Text('H', style: pw.TextStyle(color: goldColor, fontSize: 22, fontWeight: pw.FontWeight.bold)),
+                      pw.SizedBox(width: 12),
+                      pw.Expanded(
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            pw.Text(
+                              repo.companyName.toUpperCase(),
+                              style: pw.TextStyle(
+                                fontSize: 16,
+                                fontWeight: pw.FontWeight.bold,
+                                color: primaryColor,
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                            pw.SizedBox(height: 2),
+                            pw.Text(
+                              'making dreams into reality',
+                              style: pw.TextStyle(
+                                fontSize: 9,
+                                color: goldColor,
+                                fontWeight: pw.FontWeight.bold,
+                                letterSpacing: 1.0,
+                              ),
+                            ),
+                            pw.SizedBox(height: 6),
+                            pw.Text('Address: ${repo.companyAddress}',
+                                style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700)),
+                            pw.Text('Phone: ${repo.companyPhone}',
+                                style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700)),
+                            pw.Text('Email: ${repo.companyEmail}',
+                                style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700)),
+                          ],
                         ),
                       ),
-                    pw.SizedBox(width: 12),
-                    pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        pw.Text(
-                          repo.companyName.toUpperCase(),
-                          style: pw.TextStyle(
-                            fontSize: 16,
-                            fontWeight: pw.FontWeight.bold,
-                            color: primaryColor,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                        pw.SizedBox(height: 2),
-                        pw.Text(
-                          'LUXURY EVENT CURATION',
-                          style: pw.TextStyle(
-                            fontSize: 8,
-                            color: goldColor,
-                            fontWeight: pw.FontWeight.bold,
-                            letterSpacing: 2.0,
-                          ),
-                        ),
-                        pw.SizedBox(height: 6),
-                        pw.Text('Email: ${repo.companyEmail} | Phone: ${repo.companyPhone}',
-                            style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700)),
-                        pw.Text('Address: ${repo.companyAddress}',
-                            style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700)),
-                      ],
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
+                pw.SizedBox(width: 16),
                 pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.end,
                   children: [
                     pw.Container(
-                      padding: const pw.EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      padding: const pw.EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                       decoration: pw.BoxDecoration(
                         color: goldColor,
                         borderRadius: pw.BorderRadius.circular(4),
@@ -126,7 +137,7 @@ class QuotationPdfService {
                         ),
                       ),
                     ),
-                    pw.SizedBox(height: 10),
+                    pw.SizedBox(height: 8),
                     pw.Text('Quote #: ${quotation.quoteNumber}',
                         style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: primaryColor)),
                     pw.Text('Date: ${quotation.quotationDate}',
@@ -139,16 +150,17 @@ class QuotationPdfService {
                 ),
               ],
             ),
-            pw.SizedBox(height: 20),
+            pw.SizedBox(height: 16),
             pw.Divider(thickness: 1.5, color: goldColor),
-            pw.SizedBox(height: 14),
+            pw.SizedBox(height: 12),
 
             // Customer & Venue Info Card
             pw.Container(
-              padding: const pw.EdgeInsets.all(14),
+              width: double.infinity,
+              padding: const pw.EdgeInsets.all(12),
               decoration: pw.BoxDecoration(
                 color: cardBg,
-                borderRadius: pw.BorderRadius.circular(8),
+                borderRadius: pw.BorderRadius.circular(6),
                 border: pw.Border.all(color: borderColor, width: 1),
               ),
               child: pw.Row(
@@ -159,9 +171,9 @@ class QuotationPdfService {
                     children: [
                       pw.Text('PREPARED FOR (CLIENT)',
                           style: pw.TextStyle(fontSize: 8, color: goldColor, fontWeight: pw.FontWeight.bold, letterSpacing: 1.0)),
-                      pw.SizedBox(height: 4),
+                      pw.SizedBox(height: 3),
                       pw.Text(quotation.customerName.isEmpty ? 'Valued Client' : quotation.customerName,
-                          style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: primaryColor)),
+                          style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: primaryColor)),
                     ],
                   ),
                   pw.Column(
@@ -169,15 +181,15 @@ class QuotationPdfService {
                     children: [
                       pw.Text('EVENT VENUE / LOCATION',
                           style: pw.TextStyle(fontSize: 8, color: goldColor, fontWeight: pw.FontWeight.bold, letterSpacing: 1.0)),
-                      pw.SizedBox(height: 4),
+                      pw.SizedBox(height: 3),
                       pw.Text(quotation.venue.isEmpty ? 'TBD' : quotation.venue,
-                          style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: primaryColor)),
+                          style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: primaryColor)),
                     ],
                   ),
                 ],
               ),
             ),
-            pw.SizedBox(height: 18),
+            pw.SizedBox(height: 16),
 
             // Grouped Item Sections
             ...quotation.sections.map((section) {
@@ -193,29 +205,63 @@ class QuotationPdfService {
                       style: pw.TextStyle(color: goldColor, fontWeight: pw.FontWeight.bold, fontSize: 10, letterSpacing: 1.0),
                     ),
                   ),
-                  pw.TableHelper.fromTextArray(
+                  pw.Table(
                     border: pw.TableBorder.all(color: borderColor, width: 0.5),
-                    columnWidths: {
-                      0: const pw.FlexColumnWidth(3.5),
-                      1: const pw.FlexColumnWidth(1),
-                      2: const pw.FlexColumnWidth(1.5),
-                      3: const pw.FlexColumnWidth(1.8),
+                    columnWidths: const {
+                      0: pw.FlexColumnWidth(4.5),
+                      1: pw.FlexColumnWidth(1.2),
+                      2: pw.FlexColumnWidth(1.8),
+                      3: pw.FlexColumnWidth(2.0),
                     },
-                    headers: ['Item Description', 'Qty', 'Rate (Rs.)', 'Amount (Rs.)'],
-                    data: section.items.map((item) {
-                      return [
-                        item.name,
-                        item.qty != null ? item.qty!.toStringAsFixed(0) : '-',
-                        item.rate != null ? item.rate!.toStringAsFixed(0) : '-',
-                        item.price.toStringAsFixed(0),
-                      ];
-                    }).toList(),
-                    headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9, color: PdfColors.white),
-                    headerDecoration: pw.BoxDecoration(color: PdfColor.fromHex('#2D2D2D')),
-                    cellStyle: const pw.TextStyle(fontSize: 9),
-                    cellPadding: const pw.EdgeInsets.all(8),
+                    children: [
+                      // Header Row
+                      pw.TableRow(
+                        decoration: pw.BoxDecoration(color: PdfColor.fromHex('#2D2D2D')),
+                        children: [
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.all(6),
+                            child: pw.Text('Item Description', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9, color: PdfColors.white)),
+                          ),
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.all(6),
+                            child: pw.Text('Qty', textAlign: pw.TextAlign.center, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9, color: PdfColors.white)),
+                          ),
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.all(6),
+                            child: pw.Text('Rate (Rs.)', textAlign: pw.TextAlign.right, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9, color: PdfColors.white)),
+                          ),
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.all(6),
+                            child: pw.Text('Amount (Rs.)', textAlign: pw.TextAlign.right, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9, color: PdfColors.white)),
+                          ),
+                        ],
+                      ),
+                      // Item Rows
+                      ...section.items.map((item) {
+                        return pw.TableRow(
+                          children: [
+                            pw.Padding(
+                              padding: const pw.EdgeInsets.all(6),
+                              child: pw.Text(item.name, style: const pw.TextStyle(fontSize: 9)),
+                            ),
+                            pw.Padding(
+                              padding: const pw.EdgeInsets.all(6),
+                              child: pw.Text(item.qty != null ? item.qty!.toStringAsFixed(0) : '-', textAlign: pw.TextAlign.center, style: const pw.TextStyle(fontSize: 9)),
+                            ),
+                            pw.Padding(
+                              padding: const pw.EdgeInsets.all(6),
+                              child: pw.Text(item.rate != null ? item.rate!.toStringAsFixed(0) : '-', textAlign: pw.TextAlign.right, style: const pw.TextStyle(fontSize: 9)),
+                            ),
+                            pw.Padding(
+                              padding: const pw.EdgeInsets.all(6),
+                              child: pw.Text(item.price.toStringAsFixed(0), textAlign: pw.TextAlign.right, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
+                            ),
+                          ],
+                        );
+                      }),
+                    ],
                   ),
-                  pw.SizedBox(height: 14),
+                  pw.SizedBox(height: 12),
                 ],
               );
             }),
@@ -231,7 +277,7 @@ class QuotationPdfService {
                   padding: const pw.EdgeInsets.all(12),
                   decoration: pw.BoxDecoration(
                     color: cardBg,
-                    borderRadius: pw.BorderRadius.circular(8),
+                    borderRadius: pw.BorderRadius.circular(6),
                     border: pw.Border.all(color: borderColor, width: 1),
                   ),
                   child: pw.Column(
@@ -252,7 +298,7 @@ class QuotationPdfService {
                 ),
               ],
             ),
-            pw.SizedBox(height: 40),
+            pw.SizedBox(height: 30),
 
             // Footer / Signatures
             pw.Row(
@@ -262,7 +308,7 @@ class QuotationPdfService {
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
                     pw.Text('Authorized Signatory', style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: primaryColor)),
-                    pw.SizedBox(height: 20),
+                    pw.SizedBox(height: 18),
                     pw.Text('___________________________', style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey500)),
                     pw.Text(repo.companyName, style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700)),
                   ],
@@ -270,7 +316,7 @@ class QuotationPdfService {
                 pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.end,
                   children: [
-                    pw.Text('Turning Moments Into Unforgettable Memories',
+                    pw.Text('making dreams into reality',
                         style: pw.TextStyle(fontSize: 9, fontStyle: pw.FontStyle.italic, color: goldColor)),
                   ],
                 ),
