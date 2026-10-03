@@ -43,7 +43,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   final TextEditingController _advanceController = TextEditingController();
 
   bool _showDiscount = false;
-  bool _showTax = true;
+  bool _showTax = false;
   bool _showAdvancePaid = false;
 
   late List<InvoiceSection> _sections;
@@ -88,7 +88,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
     _advanceController.text = event.amountReceived.toStringAsFixed(0);
 
     _showDiscount = false;
-    _showTax = true;
+    _showTax = false;
     _showAdvancePaid = event.amountReceived > 0;
 
     _sections = [
@@ -140,7 +140,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
     _advanceController.text = '0';
 
     _showDiscount = false;
-    _showTax = true;
+    _showTax = false;
     _showAdvancePaid = false;
 
     _sections = []; // No default dummy data filled in new invoice form
