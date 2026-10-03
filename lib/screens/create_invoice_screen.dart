@@ -251,10 +251,11 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
             ),
             child: Row(
               children: [
-                IconButton(
-                  icon: const Icon(Icons.arrow_back, color: Color(0xFF1F2937)),
-                  onPressed: widget.onBack ?? () => Navigator.pop(context),
-                ),
+                if (widget.onBack != null)
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back, color: Color(0xFF1F2937)),
+                    onPressed: widget.onBack,
+                  ),
                 Expanded(
                   child: Row(
                     children: [
