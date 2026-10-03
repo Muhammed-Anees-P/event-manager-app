@@ -509,6 +509,33 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> with SingleTick
   }
 
   Widget _buildOverviewTab(EventModel event) {
+    final nameLower = event.manager.toLowerCase().trim();
+    final titleLower = event.title.toLowerCase().trim();
+
+    final linkedPayments = repository.payments.where((p) {
+      final typeLower = p.eventType.toLowerCase().trim();
+      return (nameLower.isNotEmpty && (typeLower.contains(nameLower) || nameLower.contains(typeLower))) ||
+             (titleLower.isNotEmpty && (typeLower.contains(titleLower) || titleLower.contains(typeLower)));
+    }).toList();
+
+    final double totalPaymentsReceived = linkedPayments.fold(0.0, (s, p) => s + p.amount);
+    final double liveAmountReceived = totalPaymentsReceived > event.amountReceived ? totalPaymentsReceived : event.amountReceived;
+    final double liveOutstanding = (event.contractValue - liveAmountReceived).clamp(0.0, double.infinity);
+    final double liveProgress = event.contractValue > 0 ? (liveAmountReceived / event.contractValue).clamp(0.0, 1.0) : 0.0;
+    final int livePercentage = (liveProgress * 100).round();
+
+    // Auto evaluate status
+    EventStatus evaluatedStatus = event.status;
+    if (liveAmountReceived >= event.contractValue && event.contractValue > 0) {
+      evaluatedStatus = EventStatus.completed;
+    } else if (liveAmountReceived > 0 && event.status == EventStatus.planning) {
+      evaluatedStatus = EventStatus.confirmed;
+    }
+
+    if (evaluatedStatus != event.status) {
+      event.status = evaluatedStatus;
+    }
+
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
@@ -532,7 +559,7 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> with SingleTick
                 const Divider(height: 16),
                 _buildDetailRow(Icons.person_outline, 'Customer / Manager', event.manager),
                 const Divider(height: 16),
-                _buildDetailRow(Icons.info_outline, 'Status', event.status.displayName, isStatus: true, status: event.status),
+                _buildDetailRow(Icons.info_outline, 'Status', evaluatedStatus.displayName, isStatus: true, status: evaluatedStatus),
               ],
             ),
           ),
@@ -561,7 +588,7 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> with SingleTick
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text('Amount Received', style: TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
-                    Text('₹${event.amountReceived.toStringAsFixed(0)}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF10B981))),
+                    Text('₹${liveAmountReceived.toStringAsFixed(0)}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF10B981))),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -569,14 +596,14 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> with SingleTick
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text('Outstanding', style: TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
-                    Text('₹${event.outstanding.toStringAsFixed(0)}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFFEF4444))),
+                    Text('₹${liveOutstanding.toStringAsFixed(0)}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFFEF4444))),
                   ],
                 ),
                 const SizedBox(height: 14),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(6),
                   child: LinearProgressIndicator(
-                    value: event.paymentProgress,
+                    value: liveProgress,
                     minHeight: 8,
                     backgroundColor: const Color(0xFFE5E7EB),
                     valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF10B981)),
@@ -586,7 +613,7 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> with SingleTick
                 Align(
                   alignment: Alignment.centerRight,
                   child: Text(
-                    '${event.paymentPercentage}% Paid',
+                    '$livePercentage% Paid',
                     style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF10B981)),
                   ),
                 ),
