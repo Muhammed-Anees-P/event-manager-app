@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS public.tasks (
 CREATE TABLE IF NOT EXISTS public.enquiries (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name TEXT NOT NULL,
+    phone TEXT NOT NULL DEFAULT '',
     type TEXT NOT NULL,
     total_date TEXT NOT NULL,
     amount NUMERIC NOT NULL DEFAULT 0,
@@ -44,12 +45,15 @@ CREATE TABLE IF NOT EXISTS public.enquiries (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+-- IF TABLE ALREADY EXISTS, ADD PHONE COLUMN
+ALTER TABLE public.enquiries ADD COLUMN IF NOT EXISTS phone TEXT NOT NULL DEFAULT '';
+
 -- 5. CUSTOMERS TABLE
 CREATE TABLE IF NOT EXISTS public.customers (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name TEXT NOT NULL,
-    email TEXT NOT NULL,
-    phone TEXT NOT NULL,
+    email TEXT NOT NULL DEFAULT '',
+    phone TEXT NOT NULL DEFAULT '',
     total_events INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
@@ -92,8 +96,8 @@ CREATE TABLE IF NOT EXISTS public.vendors (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name TEXT NOT NULL,
     category TEXT NOT NULL, -- Catering, Photography, Decor, Sound & Lighting, Florist
-    phone TEXT NOT NULL,
-    email TEXT NOT NULL,
+    phone TEXT NOT NULL DEFAULT '',
+    email TEXT NOT NULL DEFAULT '',
     rating TEXT NOT NULL DEFAULT '5.0 ⭐',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
@@ -115,7 +119,7 @@ CREATE TABLE IF NOT EXISTS public.inventory (
     item_name TEXT NOT NULL,
     category TEXT NOT NULL, -- Furniture, Lighting, Audio Visual, Tableware
     quantity INTEGER NOT NULL DEFAULT 0,
-    rental_price NUMERIC NOT NULL DEFAULT 0,
+    rentalPrice NUMERIC NOT NULL DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -136,7 +140,7 @@ CREATE TABLE IF NOT EXISTS public.invoices (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 13. INVOICE SECTIONS & ITEMS (RELATIONAL)
+-- 13. INVOICE SECTIONS & ITEMS
 CREATE TABLE IF NOT EXISTS public.invoice_sections (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     invoice_number TEXT NOT NULL REFERENCES public.invoices(invoice_number) ON DELETE CASCADE,
@@ -158,7 +162,7 @@ CREATE TABLE IF NOT EXISTS public.company_settings (
     id TEXT PRIMARY KEY DEFAULT 'default',
     company_name TEXT NOT NULL DEFAULT 'Haya Event Management',
     company_phone TEXT NOT NULL DEFAULT '+91 9747451938',
-    company_email TEXT NOT NULL DEFAULT 'hayaeventmanagement.info@gmail.com',
+    company_email TEXT NOT NULL DEFAULT 'admin@hayaevents.com',
     company_address TEXT NOT NULL DEFAULT 'Central Avenue, Tech Park, Mumbai',
     company_gstin TEXT NOT NULL DEFAULT '27ABCDE1234F1Z5',
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
