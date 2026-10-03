@@ -74,11 +74,11 @@ class _MainShellScreenState extends State<MainShellScreen> {
       case 2:
         return 'Add Customer';
       case 3:
-        return 'Create Quotation';
+        return '';
       case 5:
         return 'Add Task';
       case 6:
-        return 'Create Invoice';
+        return '';
       case 7:
         return 'Record Payment';
       case 8:
