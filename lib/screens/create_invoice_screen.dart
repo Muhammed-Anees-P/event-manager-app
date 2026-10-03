@@ -7,6 +7,7 @@ import '../models/event_model.dart';
 import '../models/customer_model.dart';
 import '../services/invoice_pdf_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/date_formatter.dart';
 
 class CreateInvoiceScreen extends StatefulWidget {
   final VoidCallback? onBack;
@@ -80,8 +81,8 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   void _loadEventForInvoice(EventModel event) {
     _customerController.text = event.manager;
     _venueController.text = event.venue;
-    _invoiceDateController.text = '12 Sep 2026';
-    _dueDateController.text = event.date;
+    _invoiceDateController.text = AppDateUtils.getTodayDate();
+    _dueDateController.text = event.date.isNotEmpty ? event.date : AppDateUtils.getDueDate(daysFromToday: 15);
     _invoiceNumberController.text = 'INV-2026-00${repository.invoices.length + 1}';
     _discountController.text = '0';
     _taxController.text = '18';
@@ -132,8 +133,8 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   void _resetFormToNew() {
     _customerController.text = '';
     _venueController.text = '';
-    _invoiceDateController.text = '12 Sep 2026';
-    _dueDateController.text = '25 Sep 2026';
+    _invoiceDateController.text = AppDateUtils.getTodayDate();
+    _dueDateController.text = AppDateUtils.getDueDate(daysFromToday: 15);
     _invoiceNumberController.text = 'INV-2026-00${repository.invoices.length + 1}';
     _discountController.text = '0';
     _taxController.text = '18';
