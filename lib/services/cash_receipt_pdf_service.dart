@@ -8,7 +8,11 @@ import '../data/app_data_repository.dart';
 class CashReceiptPdfService {
   static Future<void> printPdf(PaymentModel payment, {String customerName = 'Valued Customer'}) async {
     final pdfBytes = await generatePdfBytes(payment, customerName: customerName);
-    await Printing.layoutPdf(onLayout: (format) async => pdfBytes);
+    await Printing.layoutPdf(
+      onLayout: (format) async => pdfBytes,
+      name: 'CashReceipt_${payment.id}.pdf',
+      format: PdfPageFormat.a4.landscape,
+    );
   }
 
   static Future<Uint8List> generatePdfBytes(PaymentModel payment, {String customerName = 'Valued Customer'}) async {
@@ -27,7 +31,12 @@ class CashReceiptPdfService {
       final imgBytes = await rootBundle.load('assets/images/logo-no-bg.png');
       logoImage = pw.MemoryImage(imgBytes.buffer.asUint8List());
     } catch (_) {
-      logoImage = null;
+      try {
+        final imgBytes = await rootBundle.load('assets/images/login_bg.png');
+        logoImage = pw.MemoryImage(imgBytes.buffer.asUint8List());
+      } catch (_) {
+        logoImage = null;
+      }
     }
 
     final creamBg = PdfColor.fromHex('#FDFBF7');
@@ -50,42 +59,63 @@ class CashReceiptPdfService {
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
-                // Header Row (Logo Left, Cash Receipt Right)
+                // Header Row (Logo Image Left, Cash Receipt Right)
                 pw.Row(
                   mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                   crossAxisAlignment: pw.CrossAxisAlignment.center,
                   children: [
-                    if (logoImage != null)
-                      pw.Container(
-                        width: 90,
-                        height: 90,
-                        child: pw.Image(logoImage),
-                      )
-                    else
-                      pw.Container(
-                        width: 90,
-                        height: 90,
-                        decoration: pw.BoxDecoration(
-                          shape: pw.BoxShape.circle,
-                          border: pw.Border.all(color: brownText, width: 1.5),
-                          color: PdfColors.white,
+                    pw.Row(
+                      children: [
+                        if (logoImage != null)
+                          pw.Container(
+                            width: 85,
+                            height: 85,
+                            child: pw.Image(logoImage),
+                          )
+                        else
+                          pw.Container(
+                            width: 50,
+                            height: 50,
+                            decoration: pw.BoxDecoration(
+                              shape: pw.BoxShape.circle,
+                              border: pw.Border.all(color: goldColor, width: 2),
+                              color: brownText,
+                            ),
+                            child: pw.Center(
+                              child: pw.Text('H', style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold, color: goldColor)),
+                            ),
+                          ),
+                        pw.SizedBox(width: 14),
+                        pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            pw.Text(
+                              repo.companyName.toUpperCase(),
+                              style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: brownText, letterSpacing: 1.0),
+                            ),
+                            pw.SizedBox(height: 2),
+                            pw.Text(
+                              'Making dreams into reality',
+                              style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: goldColor, letterSpacing: 0.5),
+                            ),
+                            pw.SizedBox(height: 4),
+                            pw.Text('Phone: ${repo.companyPhone} | Email: ${repo.companyEmail}', style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700)),
+                          ],
                         ),
-                        child: pw.Center(
-                          child: pw.Text('HAYA', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: brownText)),
-                        ),
-                      ),
+                      ],
+                    ),
                     pw.Column(
                       crossAxisAlignment: pw.CrossAxisAlignment.end,
                       children: [
-                        pw.Text('CASH', style: pw.TextStyle(fontSize: 36, fontWeight: pw.FontWeight.bold, color: brownText, letterSpacing: 3.0)),
-                        pw.Text('RECEIPT', style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold, color: goldColor, letterSpacing: 6.0)),
+                        pw.Text('CASH', style: pw.TextStyle(fontSize: 32, fontWeight: pw.FontWeight.bold, color: brownText, letterSpacing: 3.0)),
+                        pw.Text('RECEIPT', style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold, color: goldColor, letterSpacing: 5.0)),
                         pw.SizedBox(height: 4),
-                        pw.Container(width: 160, height: 1, color: goldColor),
+                        pw.Container(width: 140, height: 1.5, color: goldColor),
                       ],
                     ),
                   ],
                 ),
-                pw.SizedBox(height: 30),
+                pw.SizedBox(height: 24),
 
                 // Receipt No & Date Row
                 pw.Row(
@@ -125,15 +155,15 @@ class CashReceiptPdfService {
                     ),
                   ],
                 ),
-                pw.SizedBox(height: 25),
+                pw.SizedBox(height: 22),
 
-                // Form Fields (Underline style)
+                // Form Fields
                 _buildReceiptLine('Received From', resolvedCustomerName),
-                pw.SizedBox(height: 18),
+                pw.SizedBox(height: 16),
                 _buildReceiptLine('Amount Received', 'Rs. ${payment.amount.toStringAsFixed(0)} (INR Only)'),
-                pw.SizedBox(height: 18),
+                pw.SizedBox(height: 16),
                 _buildReceiptLine('Payment For', payment.eventType),
-                pw.SizedBox(height: 18),
+                pw.SizedBox(height: 16),
                 _buildReceiptLine('Payment Method', payment.method),
 
                 pw.Spacer(),
@@ -153,7 +183,7 @@ class CashReceiptPdfService {
                       child: pw.Row(
                         children: [
                           pw.Container(
-                            padding: const pw.EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            padding: const pw.EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                             decoration: pw.BoxDecoration(
                               color: goldColor,
                               borderRadius: const pw.BorderRadius.horizontal(left: pw.Radius.circular(5)),
@@ -174,6 +204,7 @@ class CashReceiptPdfService {
                         pw.Container(width: 200, height: 1, color: brownText),
                         pw.SizedBox(height: 6),
                         pw.Text('Authorized Signature', style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: brownText)),
+                        pw.Text(repo.companyName, style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
                       ],
                     ),
                   ],
