@@ -135,6 +135,17 @@ class TopHeader extends StatelessWidget {
     showSearch(context: context, delegate: _GlobalSearchDelegate());
   }
 
+  String _getGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour >= 0 && hour < 12) {
+      return 'Good Morning';
+    } else if (hour >= 12 && hour < 17) {
+      return 'Good Afternoon';
+    } else {
+      return 'Good Evening';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final repository = AppDataRepository.instance;
@@ -254,7 +265,7 @@ class TopHeader extends StatelessWidget {
                   Row(
                     children: [
                       Text(
-                        'Good Morning, $userName ',
+                        '${_getGreeting()}, $userName ',
                         style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF111827)),
                       ),
                       const Text('👋', style: TextStyle(fontSize: 20)),
