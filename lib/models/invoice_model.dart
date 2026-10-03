@@ -51,6 +51,7 @@ class InvoiceModel {
   String venue;
   String invoiceDate;
   String dueDate;
+  bool showDueDate;
   List<InvoiceSection> sections;
 
   bool showDiscount;
@@ -68,6 +69,7 @@ class InvoiceModel {
     required this.venue,
     required this.invoiceDate,
     required this.dueDate,
+    bool? showDueDate,
     required this.sections,
     this.showDiscount = false,
     this.discountAmount = 0.0,
@@ -75,7 +77,7 @@ class InvoiceModel {
     this.taxPercentage = 18.0,
     this.showAdvancePaid = false,
     this.advancePaid = 0.0,
-  });
+  }) : showDueDate = showDueDate ?? true;
 
   double get rawSubtotal => sections.fold(0, (sum, section) => sum + section.subtotal);
 
