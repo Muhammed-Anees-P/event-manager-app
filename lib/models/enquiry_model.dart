@@ -18,6 +18,7 @@ extension EnquiryStatusExtension on EnquiryStatus {
 class EnquiryModel {
   final String id;
   final String name;
+  final String phone;
   final String type;
   final String totalDate;
   final double amount;
@@ -26,6 +27,7 @@ class EnquiryModel {
   const EnquiryModel({
     required this.id,
     required this.name,
+    this.phone = '',
     required this.type,
     required this.totalDate,
     required this.amount,
