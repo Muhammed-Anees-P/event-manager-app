@@ -13,7 +13,9 @@ import '../models/system_user_model.dart';
 import '../models/task_model.dart';
 import '../models/vendor_model.dart';
 import '../models/venue_model.dart';
+import '../services/notification_service.dart';
 import '../services/supabase_service.dart';
+import '../utils/date_formatter.dart';
 
 class AppDataRepository extends ChangeNotifier {
   static final AppDataRepository instance = AppDataRepository._internal();
@@ -100,22 +102,7 @@ class AppDataRepository extends ChangeNotifier {
   }
 
   // App Notifications Center
-  List<AppNotificationModel> notifications = [
-    AppNotificationModel(
-      id: '1',
-      title: 'Upcoming Event Reminder',
-      message: 'Wedding - Rahul & Priya is scheduled for 18 Sep 2026 at The Grand Palace.',
-      date: '12 Sep 2026',
-      type: NotificationType.eventReminder,
-    ),
-    AppNotificationModel(
-      id: '2',
-      title: 'Payment Overdue Alert',
-      message: 'Invoice #INV-2026-001 for Sneha Kapoor has an unpaid balance of ₹1,58,000.',
-      date: '11 Sep 2026',
-      type: NotificationType.paymentOverdue,
-    ),
-  ];
+  List<AppNotificationModel> notifications = [];
 
   int get unreadNotificationsCount => notifications.where((n) => !n.isRead).length;
 
@@ -131,7 +118,7 @@ class AppDataRepository extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Data Lists
+  // Raw Data Lists
   List<EventModel> events = [];
   List<TaskModel> tasks = [];
   List<EnquiryModel> enquiries = [];
@@ -144,13 +131,34 @@ class AppDataRepository extends ChangeNotifier {
   List<InventoryModel> inventory = [];
   List<InvoiceModel> invoices = [];
 
+  // Active Non-Soft-Deleted Entity Getters
+  List<EventModel> get activeEvents => events.where((e) => !e.isDeleted).toList();
+  List<TaskModel> get activeTasks => tasks.where((t) => !t.isDeleted).toList();
+  List<EnquiryModel> get activeEnquiries => enquiries.where((e) => !e.isDeleted).toList();
+  List<CustomerModel> get activeCustomers => customers.where((c) => !c.isDeleted).toList();
+  List<PaymentModel> get activePayments => payments.where((p) => !p.isDeleted).toList();
+  List<QuotationModel> get activeQuotations => quotations.where((q) => !q.isDeleted).toList();
+  List<ExpenseModel> get activeExpenses => expenses.where((e) => !e.isDeleted).toList();
+  List<VendorModel> get activeVendors => vendors.where((v) => !v.isDeleted).toList();
+  List<VenueModel> get activeVenues => venues.where((v) => !v.isDeleted).toList();
+  List<InventoryModel> get activeInventory => inventory.where((i) => !i.isDeleted).toList();
+  List<InvoiceModel> get activeInvoices => invoices.where((i) => !i.isDeleted).toList();
+
   bool isLoading = false;
 
   // Dynamic Calculated KPI Totals
-  int get totalEventsCount => events.length;
-  double get totalRevenue => events.fold(0, (sum, item) => sum + item.amountReceived);
-  double get totalOutstanding => events.fold(0, (sum, item) => sum + item.outstanding);
-  double get totalProfit => totalRevenue - expenses.fold(0, (sum, item) => sum + item.amount);
+  int get totalEventsCount => activeEvents.length;
+
+  double get totalPaymentsCollected => activePayments.fold(0.0, (sum, item) => sum + item.amount);
+
+  double get totalRevenue {
+    final double paymentsSum = totalPaymentsCollected;
+    final double eventsSum = activeEvents.fold(0.0, (sum, item) => sum + item.amountReceived);
+    return paymentsSum > eventsSum ? paymentsSum : eventsSum;
+  }
+
+  double get totalOutstanding => activeEvents.fold(0.0, (sum, item) => sum + item.outstanding);
+  double get totalProfit => totalRevenue - activeExpenses.fold(0.0, (sum, item) => sum + item.amount);
 
   // SUPABASE FULL API FETCH
   Future<void> fetchAllFromSupabase() async {
@@ -188,6 +196,7 @@ class AppDataRepository extends ChangeNotifier {
           status: _parseEventStatus(map['status']),
           contractValue: (map['contract_value'] as num?)?.toDouble() ?? 0.0,
           amountReceived: (map['amount_received'] as num?)?.toDouble() ?? 0.0,
+          isDeleted: map['is_deleted'] ?? false,
         );
       }).toList();
 
@@ -200,6 +209,7 @@ class AppDataRepository extends ChangeNotifier {
           priority: _parseTaskPriority(map['priority']),
           isCompleted: map['is_completed'] ?? false,
           category: map['category'] ?? 'Today',
+          isDeleted: map['is_deleted'] ?? false,
         );
       }).toList();
 
@@ -213,6 +223,7 @@ class AppDataRepository extends ChangeNotifier {
           totalDate: map['total_date'] ?? '',
           amount: (map['amount'] as num?)?.toDouble() ?? 0.0,
           status: _parseEnquiryStatus(map['status']),
+          isDeleted: map['is_deleted'] ?? false,
         );
       }).toList();
 
@@ -224,19 +235,28 @@ class AppDataRepository extends ChangeNotifier {
           email: map['email'] ?? '',
           phone: map['phone'] ?? '',
           totalEvents: map['total_events'] ?? 0,
+          isDeleted: map['is_deleted'] ?? false,
         );
       }).toList();
 
       final paymentsData = await client.from('payments').select().order('created_at', ascending: false);
-      payments = (paymentsData as List).map((map) {
+      final fetchedPayments = (paymentsData as List).map((map) {
         return PaymentModel(
           id: map['id'].toString(),
           date: map['date'] ?? '',
           eventType: map['event_type'] ?? '',
           amount: (map['amount'] as num?)?.toDouble() ?? 0.0,
           method: map['method'] ?? 'UPI',
+          isDeleted: map['is_deleted'] ?? false,
         );
       }).toList();
+
+      for (var localP in payments) {
+        if (!fetchedPayments.any((fp) => fp.id == localP.id || (fp.eventType == localP.eventType && fp.amount == localP.amount))) {
+          fetchedPayments.add(localP);
+        }
+      }
+      payments = fetchedPayments;
 
       final quotationsData = await client.from('quotations').select().order('created_at', ascending: false);
       quotations = (quotationsData as List).map((map) {
@@ -249,6 +269,7 @@ class AppDataRepository extends ChangeNotifier {
           dueDate: map['due_date'] ?? '25 Sep 2026',
           sections: [],
           status: map['status'] ?? 'Sent',
+          isDeleted: map['is_deleted'] ?? false,
         );
       }).toList();
 
@@ -261,6 +282,7 @@ class AppDataRepository extends ChangeNotifier {
           amount: (map['amount'] as num?)?.toDouble() ?? 0.0,
           date: map['date'] ?? '',
           paymentMethod: map['payment_method'] ?? 'UPI',
+          isDeleted: map['is_deleted'] ?? false,
         );
       }).toList();
 
@@ -273,6 +295,7 @@ class AppDataRepository extends ChangeNotifier {
           phone: map['phone'] ?? '',
           email: map['email'] ?? '',
           rating: map['rating'] ?? '5.0 ⭐',
+          isDeleted: map['is_deleted'] ?? false,
         );
       }).toList();
 
@@ -285,6 +308,7 @@ class AppDataRepository extends ChangeNotifier {
           capacity: map['capacity'] ?? 0,
           pricePerDay: (map['price_per_day'] as num?)?.toDouble() ?? 0.0,
           contactPerson: map['contact_person'] ?? '',
+          isDeleted: map['is_deleted'] ?? false,
         );
       }).toList();
 
@@ -295,7 +319,8 @@ class AppDataRepository extends ChangeNotifier {
           itemName: map['item_name'] ?? '',
           category: map['category'] ?? '',
           quantity: map['quantity'] ?? 0,
-          rentalPrice: (map['rental_price'] as num?)?.toDouble() ?? 0.0,
+          rentalPrice: (map['rental_price'] as num?)?.toDouble() ?? (map['rentalPrice'] as num?)?.toDouble() ?? 0.0,
+          isDeleted: map['is_deleted'] ?? false,
         );
       }).toList();
 
@@ -333,6 +358,7 @@ class AppDataRepository extends ChangeNotifier {
           taxPercentage: (invMap['tax_percentage'] as num?)?.toDouble() ?? 18.0,
           showAdvancePaid: invMap['show_advance_paid'] ?? false,
           advancePaid: (invMap['advance_paid'] as num?)?.toDouble() ?? 0.0,
+          isDeleted: invMap['is_deleted'] ?? false,
         );
       }).toList();
     } catch (e) {
@@ -340,6 +366,7 @@ class AppDataRepository extends ChangeNotifier {
     } finally {
       isLoading = false;
       notifyListeners();
+      NotificationService.instance.checkForAutomatedSystemNotifications();
     }
   }
 
@@ -368,15 +395,18 @@ class AppDataRepository extends ChangeNotifier {
   Future<void> addEvent(EventModel item) async {
     events.insert(0, item);
 
+    final notifTitle = 'New Event Scheduled';
+    final notifBody = '${item.title} scheduled for ${item.date} at ${item.venue}.';
     addNotification(
       AppNotificationModel(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
-        title: 'New Event Scheduled',
-        message: '${item.title} scheduled for ${item.date} at ${item.venue}.',
+        title: notifTitle,
+        message: notifBody,
         date: item.date,
         type: NotificationType.eventReminder,
       ),
     );
+    NotificationService.instance.showLocalPushNotification(title: notifTitle, body: notifBody);
 
     notifyListeners();
 
@@ -394,6 +424,7 @@ class AppDataRepository extends ChangeNotifier {
           'status': item.status.name,
           'contract_value': item.contractValue,
           'amount_received': item.amountReceived,
+          'is_deleted': false,
         });
       } catch (e) {
         if (kDebugMode) print('Supabase addEvent Error: $e');
@@ -402,7 +433,7 @@ class AppDataRepository extends ChangeNotifier {
   }
 
   Future<void> updateEvent(EventModel item) async {
-    final idx = events.indexWhere((e) => e.id == item.id);
+    final idx = events.indexWhere((e) => e.id == item.id || e.code == item.code);
     if (idx >= 0) {
       events[idx] = item;
       notifyListeners();
@@ -417,7 +448,8 @@ class AppDataRepository extends ChangeNotifier {
             'status': item.status.name,
             'contract_value': item.contractValue,
             'amount_received': item.amountReceived,
-          }).eq('id', item.id);
+            'is_deleted': item.isDeleted,
+          }).eq('code', item.code);
         } catch (e) {
           if (kDebugMode) print('Supabase updateEvent Error: $e');
         }
@@ -426,21 +458,40 @@ class AppDataRepository extends ChangeNotifier {
   }
 
   Future<void> deleteEvent(String id) async {
-    events.removeWhere((e) => e.id == id);
-    notifyListeners();
+    final idx = events.indexWhere((e) => e.id == id);
+    if (idx >= 0) {
+      events[idx].isDeleted = true;
+      notifyListeners();
 
-    final client = SupabaseService.instance.client;
-    if (client != null) {
-      try {
-        await client.from('events').delete().eq('id', id);
-      } catch (e) {
-        if (kDebugMode) print('Supabase deleteEvent Error: $e');
+      final client = SupabaseService.instance.client;
+      if (client != null) {
+        try {
+          await client.from('events').update({'is_deleted': true}).eq('code', events[idx].code);
+        } catch (e) {
+          if (kDebugMode) print('Supabase soft deleteEvent Error: $e');
+        }
       }
     }
   }
 
   Future<void> addTask(TaskModel item) async {
     tasks.insert(0, item);
+
+    if (item.priority == TaskPriority.high) {
+      final notifTitle = 'High Priority Task Created';
+      final notifBody = 'Task "${item.title}" assigned for ${item.eventTitle} requires immediate attention!';
+      addNotification(
+        AppNotificationModel(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          title: notifTitle,
+          message: notifBody,
+          date: AppDateUtils.getTodayDate(),
+          type: NotificationType.eventReminder,
+        ),
+      );
+      NotificationService.instance.showLocalPushNotification(title: notifTitle, body: notifBody);
+    }
+
     notifyListeners();
 
     final client = SupabaseService.instance.client;
@@ -452,10 +503,19 @@ class AppDataRepository extends ChangeNotifier {
           'priority': item.priority.name,
           'is_completed': item.isCompleted,
           'category': item.category,
+          'is_deleted': false,
         });
       } catch (e) {
         if (kDebugMode) print('Supabase addTask Error: $e');
       }
+    }
+  }
+
+  Future<void> deleteTask(String id) async {
+    final idx = tasks.indexWhere((t) => t.id == id);
+    if (idx >= 0) {
+      tasks[idx].isDeleted = true;
+      notifyListeners();
     }
   }
 
@@ -473,6 +533,7 @@ class AppDataRepository extends ChangeNotifier {
           'total_date': item.totalDate,
           'amount': item.amount,
           'status': item.status.name,
+          'is_deleted': false,
         });
       } catch (e) {
         if (kDebugMode) print('Supabase addEnquiry Error: $e');
@@ -496,6 +557,7 @@ class AppDataRepository extends ChangeNotifier {
             'total_date': item.totalDate,
             'amount': item.amount,
             'status': item.status.name,
+            'is_deleted': item.isDeleted,
           }).eq('id', item.id);
         } catch (e) {
           if (kDebugMode) print('Supabase updateEnquiry Error: $e');
@@ -505,15 +567,18 @@ class AppDataRepository extends ChangeNotifier {
   }
 
   Future<void> deleteEnquiry(String id) async {
-    enquiries.removeWhere((e) => e.id == id);
-    notifyListeners();
+    final idx = enquiries.indexWhere((e) => e.id == id);
+    if (idx >= 0) {
+      enquiries[idx].isDeleted = true;
+      notifyListeners();
 
-    final client = SupabaseService.instance.client;
-    if (client != null) {
-      try {
-        await client.from('enquiries').delete().eq('id', id);
-      } catch (e) {
-        if (kDebugMode) print('Supabase deleteEnquiry Error: $e');
+      final client = SupabaseService.instance.client;
+      if (client != null) {
+        try {
+          await client.from('enquiries').update({'is_deleted': true}).eq('id', id);
+        } catch (e) {
+          if (kDebugMode) print('Supabase soft deleteEnquiry Error: $e');
+        }
       }
     }
   }
@@ -530,6 +595,7 @@ class AppDataRepository extends ChangeNotifier {
           'email': item.email,
           'phone': item.phone,
           'total_events': item.totalEvents,
+          'is_deleted': false,
         });
       } catch (e) {
         if (kDebugMode) print('Supabase addCustomer Error: $e');
@@ -537,12 +603,63 @@ class AppDataRepository extends ChangeNotifier {
     }
   }
 
+  Future<void> updateCustomer(CustomerModel item) async {
+    final idx = customers.indexWhere((c) => c.id == item.id);
+    if (idx >= 0) {
+      customers[idx] = item;
+      notifyListeners();
+
+      final client = SupabaseService.instance.client;
+      if (client != null) {
+        try {
+          await client.from('customers').update({
+            'name': item.name,
+            'email': item.email,
+            'phone': item.phone,
+            'is_deleted': item.isDeleted,
+          }).eq('id', item.id);
+        } catch (e) {
+          if (kDebugMode) print('Supabase updateCustomer Error: $e');
+        }
+      }
+    }
+  }
+
+  Future<void> deleteCustomer(String id) async {
+    final idx = customers.indexWhere((c) => c.id == id);
+    if (idx >= 0) {
+      customers[idx].isDeleted = true;
+      notifyListeners();
+
+      final client = SupabaseService.instance.client;
+      if (client != null) {
+        try {
+          await client.from('customers').update({'is_deleted': true}).eq('id', id);
+        } catch (e) {
+          if (kDebugMode) print('Supabase soft deleteCustomer Error: $e');
+        }
+      }
+    }
+  }
+
   Future<void> addPayment(PaymentModel item) async {
     payments.insert(0, item);
 
-    // Auto sync linked event status & amount received
+    final notifTitle = 'Payment Received';
+    final notifBody = 'Payment of ₹${item.amount.toStringAsFixed(0)} received for ${item.eventType} via ${item.method}.';
+    addNotification(
+      AppNotificationModel(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        title: notifTitle,
+        message: notifBody,
+        date: item.date,
+        type: NotificationType.paymentOverdue,
+      ),
+    );
+    NotificationService.instance.showLocalPushNotification(title: notifTitle, body: notifBody);
+
     final searchName = item.eventType.toLowerCase().trim();
-    for (var event in events) {
+    for (var event in activeEvents) {
       final mgr = event.manager.toLowerCase().trim();
       final title = event.title.toLowerCase().trim();
       if (mgr.contains(searchName) || searchName.contains(mgr) || title.contains(searchName) || searchName.contains(title)) {
@@ -566,6 +683,7 @@ class AppDataRepository extends ChangeNotifier {
           'event_type': item.eventType,
           'amount': item.amount,
           'method': item.method,
+          'is_deleted': false,
         });
       } catch (e) {
         if (kDebugMode) print('Supabase addPayment Error: $e');
@@ -587,6 +705,7 @@ class AppDataRepository extends ChangeNotifier {
             'event_type': item.eventType,
             'amount': item.amount,
             'method': item.method,
+            'is_deleted': item.isDeleted,
           }).eq('id', item.id);
         } catch (e) {
           if (kDebugMode) print('Supabase updatePayment Error: $e');
@@ -596,15 +715,18 @@ class AppDataRepository extends ChangeNotifier {
   }
 
   Future<void> deletePayment(String id) async {
-    payments.removeWhere((p) => p.id == id);
-    notifyListeners();
+    final idx = payments.indexWhere((p) => p.id == id);
+    if (idx >= 0) {
+      payments[idx].isDeleted = true;
+      notifyListeners();
 
-    final client = SupabaseService.instance.client;
-    if (client != null) {
-      try {
-        await client.from('payments').delete().eq('id', id);
-      } catch (e) {
-        if (kDebugMode) print('Supabase deletePayment Error: $e');
+      final client = SupabaseService.instance.client;
+      if (client != null) {
+        try {
+          await client.from('payments').update({'is_deleted': true}).eq('id', id);
+        } catch (e) {
+          if (kDebugMode) print('Supabase soft deletePayment Error: $e');
+        }
       }
     }
   }
@@ -623,9 +745,27 @@ class AppDataRepository extends ChangeNotifier {
           'date': item.date,
           'total_amount': item.totalAmount,
           'status': item.status,
+          'is_deleted': false,
         });
       } catch (e) {
         if (kDebugMode) print('Supabase addQuotation Error: $e');
+      }
+    }
+  }
+
+  Future<void> deleteQuotation(String id) async {
+    final idx = quotations.indexWhere((q) => q.id == id || q.quoteNumber == id);
+    if (idx >= 0) {
+      quotations[idx].isDeleted = true;
+      notifyListeners();
+
+      final client = SupabaseService.instance.client;
+      if (client != null) {
+        try {
+          await client.from('quotations').update({'is_deleted': true}).eq('quote_number', quotations[idx].quoteNumber);
+        } catch (e) {
+          if (kDebugMode) print('Supabase soft deleteQuotation Error: $e');
+        }
       }
     }
   }
@@ -643,10 +783,19 @@ class AppDataRepository extends ChangeNotifier {
           'amount': item.amount,
           'date': item.date,
           'payment_method': item.paymentMethod,
+          'is_deleted': false,
         });
       } catch (e) {
         if (kDebugMode) print('Supabase addExpense Error: $e');
       }
+    }
+  }
+
+  Future<void> deleteExpense(String id) async {
+    final idx = expenses.indexWhere((e) => e.id == id);
+    if (idx >= 0) {
+      expenses[idx].isDeleted = true;
+      notifyListeners();
     }
   }
 
@@ -663,6 +812,7 @@ class AppDataRepository extends ChangeNotifier {
           'phone': item.phone,
           'email': item.email,
           'rating': item.rating,
+          'is_deleted': false,
         });
       } catch (e) {
         if (kDebugMode) print('Supabase addVendor Error: $e');
@@ -671,15 +821,18 @@ class AppDataRepository extends ChangeNotifier {
   }
 
   Future<void> deleteVendor(String id) async {
-    vendors.removeWhere((v) => v.id == id);
-    notifyListeners();
+    final idx = vendors.indexWhere((v) => v.id == id);
+    if (idx >= 0) {
+      vendors[idx].isDeleted = true;
+      notifyListeners();
 
-    final client = SupabaseService.instance.client;
-    if (client != null) {
-      try {
-        await client.from('vendors').delete().eq('id', id);
-      } catch (e) {
-        if (kDebugMode) print('Supabase deleteVendor Error: $e');
+      final client = SupabaseService.instance.client;
+      if (client != null) {
+        try {
+          await client.from('vendors').update({'is_deleted': true}).eq('id', id);
+        } catch (e) {
+          if (kDebugMode) print('Supabase soft deleteVendor Error: $e');
+        }
       }
     }
   }
@@ -697,6 +850,7 @@ class AppDataRepository extends ChangeNotifier {
           'capacity': item.capacity,
           'price_per_day': item.pricePerDay,
           'contact_person': item.contactPerson,
+          'is_deleted': false,
         });
       } catch (e) {
         if (kDebugMode) print('Supabase addVenue Error: $e');
@@ -705,15 +859,18 @@ class AppDataRepository extends ChangeNotifier {
   }
 
   Future<void> deleteVenue(String id) async {
-    venues.removeWhere((v) => v.id == id);
-    notifyListeners();
+    final idx = venues.indexWhere((v) => v.id == id);
+    if (idx >= 0) {
+      venues[idx].isDeleted = true;
+      notifyListeners();
 
-    final client = SupabaseService.instance.client;
-    if (client != null) {
-      try {
-        await client.from('venues').delete().eq('id', id);
-      } catch (e) {
-        if (kDebugMode) print('Supabase deleteVenue Error: $e');
+      final client = SupabaseService.instance.client;
+      if (client != null) {
+        try {
+          await client.from('venues').update({'is_deleted': true}).eq('id', id);
+        } catch (e) {
+          if (kDebugMode) print('Supabase soft deleteVenue Error: $e');
+        }
       }
     }
   }
@@ -730,23 +887,38 @@ class AppDataRepository extends ChangeNotifier {
           'category': item.category,
           'quantity': item.quantity,
           'rental_price': item.rentalPrice,
+          'is_deleted': false,
         });
       } catch (e) {
-        if (kDebugMode) print('Supabase addInventory Error: $e');
+        try {
+          await client.from('inventory').insert({
+            'item_name': item.itemName,
+            'category': item.category,
+            'quantity': item.quantity,
+            'rentalPrice': item.rentalPrice,
+            'is_deleted': false,
+          });
+        } catch (err2) {
+          if (kDebugMode) print('Supabase addInventory Error: $err2');
+        }
       }
     }
   }
 
   Future<void> deleteInventory(String id) async {
-    inventory.removeWhere((i) => i.id == id);
-    notifyListeners();
+    final idx = inventory.indexWhere((i) => i.id == id);
+    if (idx >= 0) {
+      final nameToDelete = inventory[idx].itemName;
+      inventory[idx].isDeleted = true;
+      notifyListeners();
 
-    final client = SupabaseService.instance.client;
-    if (client != null) {
-      try {
-        await client.from('inventory').delete().eq('id', id);
-      } catch (e) {
-        if (kDebugMode) print('Supabase deleteInventory Error: $e');
+      final client = SupabaseService.instance.client;
+      if (client != null) {
+        try {
+          await client.from('inventory').update({'is_deleted': true}).eq('item_name', nameToDelete);
+        } catch (e) {
+          if (kDebugMode) print('Supabase soft deleteInventory Error: $e');
+        }
       }
     }
   }
@@ -759,16 +931,47 @@ class AppDataRepository extends ChangeNotifier {
       invoices.insert(0, item);
     }
 
+    // Auto-record Advance Payment in Payments List
+    if (item.showAdvancePaid && item.advancePaid > 0) {
+      final String paymentTitle = 'Invoice #${item.invoiceNumber} Advance Payment (${item.customerName})';
+      final existingPaymentIndex = payments.indexWhere((p) => p.eventType.contains('Invoice #${item.invoiceNumber}'));
+
+      if (existingPaymentIndex < 0) {
+        addPayment(
+          PaymentModel(
+            id: DateTime.now().millisecondsSinceEpoch.toString(),
+            date: item.invoiceDate.isNotEmpty ? item.invoiceDate : AppDateUtils.getTodayDate(),
+            eventType: paymentTitle,
+            amount: item.advancePaid,
+            method: 'Bank Transfer / UPI',
+          ),
+        );
+      } else {
+        final existing = payments[existingPaymentIndex];
+        final updatedP = PaymentModel(
+          id: existing.id,
+          date: item.invoiceDate.isNotEmpty ? item.invoiceDate : AppDateUtils.getTodayDate(),
+          eventType: paymentTitle,
+          amount: item.advancePaid,
+          method: existing.method,
+        );
+        updatePayment(updatedP);
+      }
+    }
+
     if (item.balanceDue > 0) {
+      final notifTitle = 'Payment Overdue Alert';
+      final notifBody = 'Invoice #${item.invoiceNumber} for ${item.customerName} has an unpaid balance of ₹${item.balanceDue.toStringAsFixed(0)} due on ${item.dueDate}.';
       addNotification(
         AppNotificationModel(
           id: DateTime.now().millisecondsSinceEpoch.toString(),
-          title: 'Payment Overdue Alert',
-          message: 'Invoice #${item.invoiceNumber} for ${item.customerName} has an unpaid balance of ₹${item.balanceDue.toStringAsFixed(0)}.',
+          title: notifTitle,
+          message: notifBody,
           date: item.dueDate,
           type: NotificationType.paymentOverdue,
         ),
       );
+      NotificationService.instance.showLocalPushNotification(title: notifTitle, body: notifBody);
     }
 
     notifyListeners();
@@ -789,9 +992,9 @@ class AppDataRepository extends ChangeNotifier {
           'tax_percentage': item.taxPercentage,
           'show_advance_paid': item.showAdvancePaid,
           'advance_paid': item.advancePaid,
+          'is_deleted': item.isDeleted,
         }, onConflict: 'invoice_number');
 
-        // Clean existing sections & items safely
         final existingSecs = await client.from('invoice_sections').select('id').eq('invoice_number', item.invoiceNumber);
         if (existingSecs != null && (existingSecs as List).isNotEmpty) {
           final secIds = (existingSecs as List).map((s) => s['id'].toString()).toList();
@@ -836,15 +1039,18 @@ class AppDataRepository extends ChangeNotifier {
   }
 
   Future<void> deleteInvoice(String invoiceNumber) async {
-    invoices.removeWhere((i) => i.invoiceNumber == invoiceNumber);
-    notifyListeners();
+    final idx = invoices.indexWhere((i) => i.invoiceNumber == invoiceNumber);
+    if (idx >= 0) {
+      invoices[idx].isDeleted = true;
+      notifyListeners();
 
-    final client = SupabaseService.instance.client;
-    if (client != null) {
-      try {
-        await client.from('invoices').delete().eq('invoice_number', invoiceNumber);
-      } catch (e) {
-        if (kDebugMode) print('Supabase deleteInvoice Error: $e');
+      final client = SupabaseService.instance.client;
+      if (client != null) {
+        try {
+          await client.from('invoices').update({'is_deleted': true}).eq('invoice_number', invoiceNumber);
+        } catch (e) {
+          if (kDebugMode) print('Supabase soft deleteInvoice Error: $e');
+        }
       }
     }
   }
