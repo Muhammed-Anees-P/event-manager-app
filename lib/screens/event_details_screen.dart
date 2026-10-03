@@ -3,9 +3,10 @@ import '../data/app_data_repository.dart';
 import '../models/event_model.dart';
 import '../models/task_model.dart';
 import '../models/invoice_model.dart';
+import '../services/invoice_pdf_service.dart';
 import '../theme/app_theme.dart';
-import 'tasks_screen.dart';
 import 'create_invoice_screen.dart';
+import 'tasks_screen.dart';
 
 class EventDetailsScreen extends StatefulWidget {
   final EventModel event;
@@ -43,6 +44,227 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> with SingleTick
     if (mounted) setState(() {});
   }
 
+  void _showEditEventDialog(BuildContext context, EventModel event) {
+    final titleController = TextEditingController(text: event.title);
+    final venueController = TextEditingController(text: event.venue);
+    final dateController = TextEditingController(text: event.date);
+    final contractController = TextEditingController(text: event.contractValue.toStringAsFixed(0));
+    final receivedController = TextEditingController(text: event.amountReceived.toStringAsFixed(0));
+    EventStatus status = event.status;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setStateModal) => Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Edit Event Details', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(controller: titleController, decoration: const InputDecoration(labelText: 'Event Title')),
+                  const SizedBox(height: 12),
+                  TextField(controller: venueController, decoration: const InputDecoration(labelText: 'Venue')),
+                  const SizedBox(height: 12),
+                  TextField(controller: dateController, decoration: const InputDecoration(labelText: 'Date')),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(controller: contractController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Contract Value (₹)')),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextField(controller: receivedController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Received (₹)')),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<EventStatus>(
+                    value: status,
+                    decoration: const InputDecoration(labelText: 'Status'),
+                    items: EventStatus.values.map((s) => DropdownMenuItem(value: s, child: Text(s.displayName))).toList(),
+                    onChanged: (v) => setStateModal(() => status = v!),
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        final updated = EventModel(
+                          id: event.id,
+                          code: event.code,
+                          title: titleController.text.trim(),
+                          date: dateController.text.trim(),
+                          time: event.time,
+                          venue: venueController.text.trim(),
+                          guests: event.guests,
+                          manager: event.manager,
+                          status: status,
+                          contractValue: double.tryParse(contractController.text.trim()) ?? event.contractValue,
+                          amountReceived: double.tryParse(receivedController.text.trim()) ?? event.amountReceived,
+                          services: event.services,
+                        );
+                        await repository.updateEvent(updated);
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        setState(() {});
+                      },
+                      style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
+                      child: const Text('Save Changes'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _confirmDeleteEvent(BuildContext context, EventModel event) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Event'),
+        content: Text('Are you sure you want to delete ${event.title}?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () async {
+              await repository.deleteEvent(event.id);
+              if (ctx.mounted) Navigator.pop(ctx);
+              widget.onBack();
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditTaskDialog(BuildContext context, TaskModel task) {
+    final titleController = TextEditingController(text: task.title);
+    TaskPriority selectedPriority = task.priority;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setStateModal) {
+          return AlertDialog(
+            title: const Text('Edit Task Details'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: titleController,
+                  decoration: const InputDecoration(labelText: 'Task Description *'),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<TaskPriority>(
+                  value: selectedPriority,
+                  decoration: const InputDecoration(labelText: 'Priority'),
+                  items: TaskPriority.values
+                      .map((p) => DropdownMenuItem(value: p, child: Text(p.displayName)))
+                      .toList(),
+                  onChanged: (v) => setStateModal(() => selectedPriority = v!),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+              ElevatedButton(
+                onPressed: () {
+                  if (titleController.text.trim().isNotEmpty) {
+                    setState(() {
+                      task.title = titleController.text.trim();
+                      task.priority = selectedPriority;
+                    });
+                    if (ctx.mounted) Navigator.pop(ctx);
+                  }
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
+                child: const Text('Save Task'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _showEditServiceDialog(BuildContext context, EventModel event, int index, String currentService) {
+    final controller = TextEditingController(text: currentService);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit Assigned Service'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(labelText: 'Service Name / Description (e.g. Royal Caterers)'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () async {
+              if (controller.text.trim().isNotEmpty) {
+                setState(() {
+                  event.services[index] = controller.text.trim();
+                });
+                await repository.updateEvent(event);
+                if (ctx.mounted) Navigator.pop(ctx);
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
+            child: const Text('Save Service'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAddServiceDialog(BuildContext context, EventModel event) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Add Service / Vendor'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(labelText: 'Service Name / Description (e.g. DJ & Lighting)'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () async {
+              if (controller.text.trim().isNotEmpty) {
+                setState(() {
+                  event.services.add(controller.text.trim());
+                });
+                await repository.updateEvent(event);
+                if (ctx.mounted) Navigator.pop(ctx);
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
+            child: const Text('Add Service'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final event = widget.event;
@@ -60,6 +282,18 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> with SingleTick
         ),
         backgroundColor: Colors.white,
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit_outlined, color: AppTheme.primary),
+            tooltip: 'Edit Event',
+            onPressed: () => _showEditEventDialog(context, event),
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline, color: Colors.red),
+            tooltip: 'Delete Event',
+            onPressed: () => _confirmDeleteEvent(context, event),
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -149,173 +383,26 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> with SingleTick
               ),
             ),
           ),
-          // Sticky Bottom Actions: Convert to Invoice, Edit, Delete
+          // Sticky Bottom Action Buttons
           Container(
             padding: const EdgeInsets.all(16),
             decoration: const BoxDecoration(
               color: Colors.white,
               border: Border(top: BorderSide(color: Color(0xFFE5E7EB))),
             ),
-            child: Row(
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: SizedBox(
-                    height: 48,
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => CreateInvoiceScreen(initialEvent: event),
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.receipt_long, color: Colors.white, size: 18),
-                      label: const Text('Convert to Invoice', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.primary,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                    ),
-                  ),
+            child: SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton.icon(
+                onPressed: () => _showEditEventDialog(context, event),
+                icon: const Icon(Icons.edit),
+                label: const Text('Edit Event Details', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primary,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: SizedBox(
-                    height: 48,
-                    child: OutlinedButton.icon(
-                      onPressed: () => _showEditEventDialog(context, event),
-                      icon: const Icon(Icons.edit, size: 16),
-                      label: const Text('Edit'),
-                      style: OutlinedButton.styleFrom(
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton(
-                  onPressed: () => _confirmDeleteEvent(context, event),
-                  icon: const Icon(Icons.delete_outline, color: Colors.red),
-                  tooltip: 'Delete Event',
-                ),
-              ],
+              ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showEditEventDialog(BuildContext context, EventModel event) {
-    final titleController = TextEditingController(text: event.title);
-    final venueController = TextEditingController(text: event.venue);
-    final dateController = TextEditingController(text: event.date);
-    final contractController = TextEditingController(text: event.contractValue.toStringAsFixed(0));
-    final receivedController = TextEditingController(text: event.amountReceived.toStringAsFixed(0));
-    EventStatus status = event.status;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setStateModal) => Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-            left: 20,
-            right: 20,
-            top: 20,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Edit Event', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                TextField(controller: titleController, decoration: const InputDecoration(labelText: 'Event Title')),
-                const SizedBox(height: 12),
-                TextField(controller: venueController, decoration: const InputDecoration(labelText: 'Venue')),
-                const SizedBox(height: 12),
-                TextField(controller: dateController, decoration: const InputDecoration(labelText: 'Date')),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(controller: contractController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Contract Value (₹)')),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextField(controller: receivedController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Received (₹)')),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<EventStatus>(
-                  value: status,
-                  decoration: const InputDecoration(labelText: 'Status'),
-                  items: EventStatus.values.map((s) => DropdownMenuItem(value: s, child: Text(s.displayName))).toList(),
-                  onChanged: (v) => setStateModal(() => status = v!),
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      final updated = EventModel(
-                        id: event.id,
-                        code: event.code,
-                        title: titleController.text.trim(),
-                        date: dateController.text.trim(),
-                        time: event.time,
-                        venue: venueController.text.trim(),
-                        guests: event.guests,
-                        manager: event.manager,
-                        status: status,
-                        contractValue: double.tryParse(contractController.text.trim()) ?? event.contractValue,
-                        amountReceived: double.tryParse(receivedController.text.trim()) ?? event.amountReceived,
-                        services: event.services,
-                      );
-                      await repository.updateEvent(updated);
-                      if (ctx.mounted) Navigator.pop(ctx);
-                      setState(() {});
-                    },
-                    style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
-                    child: const Text('Save Changes'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _confirmDeleteEvent(BuildContext context, EventModel event) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete Event'),
-        content: Text('Are you sure you want to delete ${event.title}?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () async {
-              await repository.deleteEvent(event.id);
-              if (ctx.mounted) Navigator.pop(ctx);
-              widget.onBack();
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Delete'),
           ),
         ],
       ),
@@ -444,7 +531,7 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> with SingleTick
                       final task = eventTasks[idx];
                       return Container(
                         margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(8),
@@ -461,7 +548,31 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> with SingleTick
                                 });
                               },
                             ),
-                            Expanded(child: Text(task.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+                            Expanded(
+                              child: Text(
+                                task.title,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                  decoration: task.isCompleted ? TextDecoration.lineThrough : null,
+                                  color: task.isCompleted ? Colors.grey : const Color(0xFF111827),
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.edit_outlined, color: Color(0xFF4B5563), size: 18),
+                              tooltip: 'Edit Task',
+                              onPressed: () => _showEditTaskDialog(context, task),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
+                              tooltip: 'Delete Task',
+                              onPressed: () {
+                                setState(() {
+                                  repository.tasks.removeWhere((t) => t.id == task.id);
+                                });
+                              },
+                            ),
                           ],
                         ),
                       );
@@ -513,48 +624,31 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> with SingleTick
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Expanded(child: Text(service, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
-                            IconButton(
-                              icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
-                              onPressed: () {
-                                setState(() {
-                                  event.services.removeAt(idx);
-                                });
-                              },
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.edit_outlined, color: Color(0xFF4B5563), size: 18),
+                                  tooltip: 'Edit Service',
+                                  onPressed: () => _showEditServiceDialog(context, event, idx, service),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
+                                  tooltip: 'Delete Service',
+                                  onPressed: () async {
+                                    setState(() {
+                                      event.services.removeAt(idx);
+                                    });
+                                    await repository.updateEvent(event);
+                                  },
+                                ),
+                              ],
                             ),
                           ],
                         ),
                       );
                     },
                   ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showAddServiceDialog(BuildContext context, EventModel event) {
-    final controller = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Add Service / Vendor'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(labelText: 'Service Name / Description (e.g. DJ & Lighting)'),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () {
-              if (controller.text.trim().isNotEmpty) {
-                setState(() {
-                  event.services.add(controller.text.trim());
-                });
-                Navigator.pop(ctx);
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
-            child: const Text('Add'),
           ),
         ],
       ),
@@ -577,7 +671,10 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> with SingleTick
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => CreateInvoiceScreen(initialEvent: event),
+                      builder: (_) => CreateInvoiceScreen(
+                        initialEvent: event,
+                        onBack: () => Navigator.pop(context),
+                      ),
                     ),
                   );
                 },
@@ -616,7 +713,18 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> with SingleTick
                                 Text('Due: ${inv.dueDate}', style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
                               ],
                             ),
-                            Text('₹${inv.grandTotal.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF10B981))),
+                            Row(
+                              children: [
+                                Text('₹${inv.grandTotal.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF10B981))),
+                                const SizedBox(width: 8),
+                                IconButton(
+                                  icon: const Icon(Icons.print_outlined, color: AppTheme.primary, size: 18),
+                                  onPressed: () async {
+                                    await InvoicePdfService.printInvoice(inv);
+                                  },
+                                ),
+                              ],
+                            ),
                           ],
                         ),
                       );
