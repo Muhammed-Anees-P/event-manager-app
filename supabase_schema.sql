@@ -1,5 +1,5 @@
 -- ====================================================================
--- HAYA EVENT MANAGEMENT - SUPABASE DATABASE MIGRATION SCRIPT
+-- HAYA EVENT MANAGEMENT - COMPLETE SUPABASE MIGRATION SCRIPT
 -- Copy & Paste this entire script into Supabase SQL Editor and click RUN
 -- ====================================================================
 
@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS public.events (
     status TEXT NOT NULL DEFAULT 'planning', -- confirmed, planning, completed, cancelled
     contract_value NUMERIC NOT NULL DEFAULT 0,
     amount_received NUMERIC NOT NULL DEFAULT 0,
+    is_deleted BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -30,6 +31,7 @@ CREATE TABLE IF NOT EXISTS public.tasks (
     priority TEXT NOT NULL DEFAULT 'medium', -- high, medium, low
     is_completed BOOLEAN NOT NULL DEFAULT false,
     category TEXT NOT NULL DEFAULT 'Today',
+    is_deleted BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -42,11 +44,9 @@ CREATE TABLE IF NOT EXISTS public.enquiries (
     total_date TEXT NOT NULL,
     amount NUMERIC NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'newEnquiry', -- newEnquiry, quoted, followUp, contacted
+    is_deleted BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
-
--- IF TABLE ALREADY EXISTS, ADD PHONE COLUMN
-ALTER TABLE public.enquiries ADD COLUMN IF NOT EXISTS phone TEXT NOT NULL DEFAULT '';
 
 -- 5. CUSTOMERS TABLE
 CREATE TABLE IF NOT EXISTS public.customers (
@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS public.customers (
     email TEXT NOT NULL DEFAULT '',
     phone TEXT NOT NULL DEFAULT '',
     total_events INTEGER NOT NULL DEFAULT 0,
+    is_deleted BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -65,6 +66,7 @@ CREATE TABLE IF NOT EXISTS public.payments (
     event_type TEXT NOT NULL,
     amount NUMERIC NOT NULL DEFAULT 0,
     method TEXT NOT NULL DEFAULT 'UPI', -- UPI, Bank Transfer, Cash, Credit Card
+    is_deleted BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -77,6 +79,7 @@ CREATE TABLE IF NOT EXISTS public.quotations (
     date TEXT NOT NULL,
     total_amount NUMERIC NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'Sent', -- Draft, Sent, Accepted, Rejected
+    is_deleted BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -88,6 +91,7 @@ CREATE TABLE IF NOT EXISTS public.expenses (
     amount NUMERIC NOT NULL DEFAULT 0,
     date TEXT NOT NULL,
     payment_method TEXT NOT NULL DEFAULT 'UPI',
+    is_deleted BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -99,6 +103,7 @@ CREATE TABLE IF NOT EXISTS public.vendors (
     phone TEXT NOT NULL DEFAULT '',
     email TEXT NOT NULL DEFAULT '',
     rating TEXT NOT NULL DEFAULT '5.0 ⭐',
+    is_deleted BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -110,6 +115,7 @@ CREATE TABLE IF NOT EXISTS public.venues (
     capacity INTEGER NOT NULL DEFAULT 0,
     price_per_day NUMERIC NOT NULL DEFAULT 0,
     contact_person TEXT NOT NULL,
+    is_deleted BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -119,7 +125,8 @@ CREATE TABLE IF NOT EXISTS public.inventory (
     item_name TEXT NOT NULL,
     category TEXT NOT NULL, -- Furniture, Lighting, Audio Visual, Tableware
     quantity INTEGER NOT NULL DEFAULT 0,
-    rentalPrice NUMERIC NOT NULL DEFAULT 0,
+    rental_price NUMERIC NOT NULL DEFAULT 0,
+    is_deleted BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -138,12 +145,11 @@ CREATE TABLE IF NOT EXISTS public.invoices (
     tax_percentage NUMERIC NOT NULL DEFAULT 18,
     show_advance_paid BOOLEAN NOT NULL DEFAULT false,
     advance_paid NUMERIC NOT NULL DEFAULT 0,
+    is_deleted BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
-ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS show_due_date BOOLEAN NOT NULL DEFAULT true;
-
--- 13. INVOICE SECTIONS & ITEMS
+-- 13. INVOICE SECTIONS & ITEMS (RELATIONAL)
 CREATE TABLE IF NOT EXISTS public.invoice_sections (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     invoice_number TEXT NOT NULL REFERENCES public.invoices(invoice_number) ON DELETE CASCADE,
@@ -179,6 +185,22 @@ CREATE TABLE IF NOT EXISTS public.user_profiles (
     full_name TEXT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+-- 16. MIGRATION COLUMNS FOR EXISTING TABLES
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE public.enquiries ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE public.enquiries ADD COLUMN IF NOT EXISTS phone TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE public.payments ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE public.quotations ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE public.vendors ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE public.venues ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS rental_price NUMERIC NOT NULL DEFAULT 0;
+ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS show_due_date BOOLEAN NOT NULL DEFAULT true;
 
 -- DISABLE ROW LEVEL SECURITY FOR ALL TABLES TO ALLOW FULL API ACCESS
 ALTER TABLE public.events DISABLE ROW LEVEL SECURITY;
