@@ -208,6 +208,7 @@ class AppDataRepository extends ChangeNotifier {
         return EnquiryModel(
           id: map['id'].toString(),
           name: map['name'] ?? '',
+          phone: map['phone'] ?? '',
           type: map['type'] ?? '',
           totalDate: map['total_date'] ?? '',
           amount: (map['amount'] as num?)?.toDouble() ?? 0.0,
@@ -381,7 +382,7 @@ class AppDataRepository extends ChangeNotifier {
     final client = SupabaseService.instance.client;
     if (client != null) {
       try {
-        await client.from('events').insert({
+        final res = await client.from('events').insert({
           'code': item.code,
           'title': item.title,
           'date': item.date,
@@ -392,9 +393,10 @@ class AppDataRepository extends ChangeNotifier {
           'status': item.status.name,
           'contract_value': item.contractValue,
           'amount_received': item.amountReceived,
-        });
+        }).select();
+        if (kDebugMode) print('✅ Supabase addEvent Success: $res');
       } catch (e) {
-        if (kDebugMode) print('Supabase addEvent Error: $e');
+        if (kDebugMode) print('❌ Supabase addEvent Error: $e');
       }
     }
   }
@@ -466,6 +468,7 @@ class AppDataRepository extends ChangeNotifier {
       try {
         await client.from('enquiries').insert({
           'name': item.name,
+          'phone': item.phone,
           'type': item.type,
           'total_date': item.totalDate,
           'amount': item.amount,
@@ -488,6 +491,7 @@ class AppDataRepository extends ChangeNotifier {
         try {
           await client.from('enquiries').update({
             'name': item.name,
+            'phone': item.phone,
             'type': item.type,
             'total_date': item.totalDate,
             'amount': item.amount,
