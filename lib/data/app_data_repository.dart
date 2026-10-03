@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 
 import '../models/app_notification_model.dart';
@@ -20,26 +19,10 @@ class AppDataRepository extends ChangeNotifier {
   static final AppDataRepository instance = AppDataRepository._internal();
 
   AppDataRepository._internal() {
-    checkInternetConnection();
     fetchAllFromSupabase();
   }
 
-  bool isOnline = true;
-
-  Future<void> checkInternetConnection() async {
-    if (kIsWeb) {
-      isOnline = true;
-      notifyListeners();
-      return;
-    }
-    try {
-      final result = await InternetAddress.lookup('google.com');
-      isOnline = result.isNotEmpty && result[0].rawAddress.isNotEmpty;
-    } catch (_) {
-      isOnline = false;
-    }
-    notifyListeners();
-  }
+  bool get isOnline => SupabaseService.instance.isConfigured;
 
   // Active Logged-In User State
   String currentUserName = 'Anees';
@@ -53,10 +36,10 @@ class AppDataRepository extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Company Settings State (Live Dynamic Supabase API)
+  // Company Settings State
   String companyName = 'Haya Event Management';
   String companyPhone = '+91 9747451938';
-  String companyEmail = 'hayaeventmanagement.info@gmail.com';
+  String companyEmail = 'admin@hayaevents.com';
   String companyAddress = 'Central Avenue, Tech Park, Mumbai';
   String companyGstin = '27ABCDE1234F1Z5';
 
@@ -93,7 +76,7 @@ class AppDataRepository extends ChangeNotifier {
     }
   }
 
-  // System Users List (Anees & Mubeen only)
+  // System Users List
   List<SystemUserModel> systemUsers = [
     SystemUserModel(id: '1', username: 'Anees', email: 'anees@hayaevents.com', role: 'Admin', avatarUrl: 'avatar_1'),
     SystemUserModel(id: '2', username: 'Mubeen', email: 'mubeen@hayaevents.com', role: 'Manager', avatarUrl: 'avatar_2'),
@@ -116,8 +99,23 @@ class AppDataRepository extends ChangeNotifier {
     }
   }
 
-  // App Notifications Center (Starts empty, no pre-seeded notifications)
-  List<AppNotificationModel> notifications = [];
+  // App Notifications Center
+  List<AppNotificationModel> notifications = [
+    AppNotificationModel(
+      id: '1',
+      title: 'Upcoming Event Reminder',
+      message: 'Wedding - Rahul & Priya is scheduled for 18 Sep 2026 at The Grand Palace.',
+      date: '12 Sep 2026',
+      type: NotificationType.eventReminder,
+    ),
+    AppNotificationModel(
+      id: '2',
+      title: 'Payment Overdue Alert',
+      message: 'Invoice #INV-2026-001 for Sneha Kapoor has an unpaid balance of ₹1,58,000.',
+      date: '11 Sep 2026',
+      type: NotificationType.paymentOverdue,
+    ),
+  ];
 
   int get unreadNotificationsCount => notifications.where((n) => !n.isRead).length;
 
@@ -133,7 +131,7 @@ class AppDataRepository extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Data Lists (Live API State)
+  // Data Lists
   List<EventModel> events = [];
   List<TaskModel> tasks = [];
   List<EnquiryModel> enquiries = [];
@@ -163,7 +161,6 @@ class AppDataRepository extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // 0. Fetch Company Settings
       try {
         final companyData = await client.from('company_settings').select().eq('id', 'default').maybeSingle();
         if (companyData != null) {
@@ -177,7 +174,6 @@ class AppDataRepository extends ChangeNotifier {
         if (kDebugMode) print('Supabase company_settings fetch error: $e');
       }
 
-      // 1. Fetch Events
       final eventsData = await client.from('events').select().order('created_at', ascending: false);
       events = (eventsData as List).map((map) {
         return EventModel(
@@ -195,7 +191,6 @@ class AppDataRepository extends ChangeNotifier {
         );
       }).toList();
 
-      // 2. Fetch Tasks
       final tasksData = await client.from('tasks').select().order('created_at', ascending: false);
       tasks = (tasksData as List).map((map) {
         return TaskModel(
@@ -208,7 +203,6 @@ class AppDataRepository extends ChangeNotifier {
         );
       }).toList();
 
-      // 3. Fetch Enquiries
       final enquiriesData = await client.from('enquiries').select().order('created_at', ascending: false);
       enquiries = (enquiriesData as List).map((map) {
         return EnquiryModel(
@@ -221,7 +215,6 @@ class AppDataRepository extends ChangeNotifier {
         );
       }).toList();
 
-      // 4. Fetch Customers
       final customersData = await client.from('customers').select().order('created_at', ascending: false);
       customers = (customersData as List).map((map) {
         return CustomerModel(
@@ -233,26 +226,17 @@ class AppDataRepository extends ChangeNotifier {
         );
       }).toList();
 
-      // 5. Fetch Payments
       final paymentsData = await client.from('payments').select().order('created_at', ascending: false);
       payments = (paymentsData as List).map((map) {
-        final rawEventType = map['event_type'] ?? '';
-        String? parsedCustomer;
-        if (rawEventType.contains('(') && rawEventType.endsWith(')')) {
-          final start = rawEventType.lastIndexOf('(');
-          parsedCustomer = rawEventType.substring(start + 1, rawEventType.length - 1);
-        }
         return PaymentModel(
           id: map['id'].toString(),
           date: map['date'] ?? '',
-          eventType: rawEventType,
+          eventType: map['event_type'] ?? '',
           amount: (map['amount'] as num?)?.toDouble() ?? 0.0,
           method: map['method'] ?? 'UPI',
-          customerName: parsedCustomer,
         );
       }).toList();
 
-      // 6. Fetch Quotations
       final quotationsData = await client.from('quotations').select().order('created_at', ascending: false);
       quotations = (quotationsData as List).map((map) {
         return QuotationModel(
@@ -260,22 +244,13 @@ class AppDataRepository extends ChangeNotifier {
           quoteNumber: map['quote_number'] ?? '',
           customerName: map['customer_name'] ?? '',
           venue: map['venue'] ?? '',
-          quotationDate: map['date'] ?? '12 Sep 2026',
+          quotationDate: map['date'] ?? '',
           dueDate: map['due_date'] ?? '25 Sep 2026',
-          eventType: map['event_type'] ?? 'Wedding',
-          sections: [
-            InvoiceSection(
-              heading: map['event_type'] ?? 'Quotation Package',
-              items: [
-                InvoiceItem(name: 'Quotation Amount', price: (map['total_amount'] as num?)?.toDouble() ?? 0.0),
-              ],
-            ),
-          ],
+          sections: [],
           status: map['status'] ?? 'Sent',
         );
       }).toList();
 
-      // 7. Fetch Expenses
       final expensesData = await client.from('expenses').select().order('created_at', ascending: false);
       expenses = (expensesData as List).map((map) {
         return ExpenseModel(
@@ -288,7 +263,6 @@ class AppDataRepository extends ChangeNotifier {
         );
       }).toList();
 
-      // 8. Fetch Vendors
       final vendorsData = await client.from('vendors').select().order('created_at', ascending: false);
       vendors = (vendorsData as List).map((map) {
         return VendorModel(
@@ -301,7 +275,6 @@ class AppDataRepository extends ChangeNotifier {
         );
       }).toList();
 
-      // 9. Fetch Venues
       final venuesData = await client.from('venues').select().order('created_at', ascending: false);
       venues = (venuesData as List).map((map) {
         return VenueModel(
@@ -314,7 +287,6 @@ class AppDataRepository extends ChangeNotifier {
         );
       }).toList();
 
-      // 10. Fetch Inventory
       final inventoryData = await client.from('inventory').select().order('created_at', ascending: false);
       inventory = (inventoryData as List).map((map) {
         return InventoryModel(
@@ -326,7 +298,6 @@ class AppDataRepository extends ChangeNotifier {
         );
       }).toList();
 
-      // 11. Fetch Invoices with Relational Sections & Items
       final invoicesData = await client.from('invoices').select('*, invoice_sections(*, invoice_items(*))').order('created_at', ascending: false);
       invoices = (invoicesData as List).map((invMap) {
         final rawSections = invMap['invoice_sections'] as List? ?? [];
@@ -410,7 +381,7 @@ class AppDataRepository extends ChangeNotifier {
     final client = SupabaseService.instance.client;
     if (client != null) {
       try {
-        final res = await client.from('events').insert({
+        await client.from('events').insert({
           'code': item.code,
           'title': item.title,
           'date': item.date,
@@ -421,10 +392,9 @@ class AppDataRepository extends ChangeNotifier {
           'status': item.status.name,
           'contract_value': item.contractValue,
           'amount_received': item.amountReceived,
-        }).select();
-        if (kDebugMode) print('✅ Supabase addEvent Success: $res');
+        });
       } catch (e) {
-        if (kDebugMode) print('❌ Supabase addEvent Error: $e');
+        if (kDebugMode) print('Supabase addEvent Error: $e');
       }
     }
   }
@@ -434,6 +404,7 @@ class AppDataRepository extends ChangeNotifier {
     if (idx >= 0) {
       events[idx] = item;
       notifyListeners();
+
       final client = SupabaseService.instance.client;
       if (client != null) {
         try {
@@ -444,9 +415,9 @@ class AppDataRepository extends ChangeNotifier {
             'status': item.status.name,
             'contract_value': item.contractValue,
             'amount_received': item.amountReceived,
-          }).eq('code', item.code);
+          }).eq('id', item.id);
         } catch (e) {
-          if (kDebugMode) print('Supabase updateEvent error: $e');
+          if (kDebugMode) print('Supabase updateEvent Error: $e');
         }
       }
     }
@@ -455,12 +426,13 @@ class AppDataRepository extends ChangeNotifier {
   Future<void> deleteEvent(String id) async {
     events.removeWhere((e) => e.id == id);
     notifyListeners();
+
     final client = SupabaseService.instance.client;
     if (client != null) {
       try {
         await client.from('events').delete().eq('id', id);
       } catch (e) {
-        if (kDebugMode) print('Supabase deleteEvent error: $e');
+        if (kDebugMode) print('Supabase deleteEvent Error: $e');
       }
     }
   }
@@ -472,16 +444,15 @@ class AppDataRepository extends ChangeNotifier {
     final client = SupabaseService.instance.client;
     if (client != null) {
       try {
-        final res = await client.from('tasks').insert({
+        await client.from('tasks').insert({
           'title': item.title,
           'event_title': item.eventTitle,
           'priority': item.priority.name,
           'is_completed': item.isCompleted,
           'category': item.category,
-        }).select();
-        if (kDebugMode) print('✅ Supabase addTask Success: $res');
+        });
       } catch (e) {
-        if (kDebugMode) print('❌ Supabase addTask Error: $e');
+        if (kDebugMode) print('Supabase addTask Error: $e');
       }
     }
   }
@@ -493,16 +464,52 @@ class AppDataRepository extends ChangeNotifier {
     final client = SupabaseService.instance.client;
     if (client != null) {
       try {
-        final res = await client.from('enquiries').insert({
+        await client.from('enquiries').insert({
           'name': item.name,
           'type': item.type,
           'total_date': item.totalDate,
           'amount': item.amount,
           'status': item.status.name,
-        }).select();
-        if (kDebugMode) print('✅ Supabase addEnquiry Success: $res');
+        });
       } catch (e) {
-        if (kDebugMode) print('❌ Supabase addEnquiry Error: $e');
+        if (kDebugMode) print('Supabase addEnquiry Error: $e');
+      }
+    }
+  }
+
+  Future<void> updateEnquiry(EnquiryModel item) async {
+    final idx = enquiries.indexWhere((e) => e.id == item.id);
+    if (idx >= 0) {
+      enquiries[idx] = item;
+      notifyListeners();
+
+      final client = SupabaseService.instance.client;
+      if (client != null) {
+        try {
+          await client.from('enquiries').update({
+            'name': item.name,
+            'type': item.type,
+            'total_date': item.totalDate,
+            'amount': item.amount,
+            'status': item.status.name,
+          }).eq('id', item.id);
+        } catch (e) {
+          if (kDebugMode) print('Supabase updateEnquiry Error: $e');
+        }
+      }
+    }
+  }
+
+  Future<void> deleteEnquiry(String id) async {
+    enquiries.removeWhere((e) => e.id == id);
+    notifyListeners();
+
+    final client = SupabaseService.instance.client;
+    if (client != null) {
+      try {
+        await client.from('enquiries').delete().eq('id', id);
+      } catch (e) {
+        if (kDebugMode) print('Supabase deleteEnquiry Error: $e');
       }
     }
   }
@@ -514,77 +521,90 @@ class AppDataRepository extends ChangeNotifier {
     final client = SupabaseService.instance.client;
     if (client != null) {
       try {
-        final res = await client.from('customers').insert({
+        await client.from('customers').insert({
           'name': item.name,
           'email': item.email,
           'phone': item.phone,
           'total_events': item.totalEvents,
-        }).select();
-        if (kDebugMode) print('✅ Supabase addCustomer Success: $res');
+        });
       } catch (e) {
-        if (kDebugMode) print('❌ Supabase addCustomer Error: $e');
+        if (kDebugMode) print('Supabase addCustomer Error: $e');
       }
     }
   }
 
   Future<void> addPayment(PaymentModel item) async {
-    final finalEventType = (item.customerName != null && item.customerName!.isNotEmpty && !item.eventType.contains(item.customerName!))
-        ? '${item.eventType} (${item.customerName})'
-        : item.eventType;
-
-    final paymentToSave = PaymentModel(
-      id: item.id,
-      date: item.date,
-      eventType: finalEventType,
-      amount: item.amount,
-      method: item.method,
-      customerName: item.customerName,
-    );
-
-    payments.insert(0, paymentToSave);
+    payments.insert(0, item);
     notifyListeners();
 
     final client = SupabaseService.instance.client;
     if (client != null) {
       try {
-        final res = await client.from('payments').insert({
-          'date': paymentToSave.date,
-          'event_type': paymentToSave.eventType,
-          'amount': paymentToSave.amount,
-          'method': paymentToSave.method,
-        }).select();
-        if (kDebugMode) print('✅ Supabase addPayment Success: $res');
+        await client.from('payments').insert({
+          'date': item.date,
+          'event_type': item.eventType,
+          'amount': item.amount,
+          'method': item.method,
+        });
       } catch (e) {
-        if (kDebugMode) print('❌ Supabase addPayment Error: $e');
+        if (kDebugMode) print('Supabase addPayment Error: $e');
+      }
+    }
+  }
+
+  Future<void> updatePayment(PaymentModel item) async {
+    final idx = payments.indexWhere((p) => p.id == item.id);
+    if (idx >= 0) {
+      payments[idx] = item;
+      notifyListeners();
+
+      final client = SupabaseService.instance.client;
+      if (client != null) {
+        try {
+          await client.from('payments').update({
+            'date': item.date,
+            'event_type': item.eventType,
+            'amount': item.amount,
+            'method': item.method,
+          }).eq('id', item.id);
+        } catch (e) {
+          if (kDebugMode) print('Supabase updatePayment Error: $e');
+        }
+      }
+    }
+  }
+
+  Future<void> deletePayment(String id) async {
+    payments.removeWhere((p) => p.id == id);
+    notifyListeners();
+
+    final client = SupabaseService.instance.client;
+    if (client != null) {
+      try {
+        await client.from('payments').delete().eq('id', id);
+      } catch (e) {
+        if (kDebugMode) print('Supabase deletePayment Error: $e');
       }
     }
   }
 
   Future<void> addQuotation(QuotationModel item) async {
-    final index = quotations.indexWhere((q) => q.id == item.id);
-    if (index >= 0) {
-      quotations[index] = item;
-    } else {
-      quotations.insert(0, item);
-    }
+    quotations.insert(0, item);
     notifyListeners();
 
     final client = SupabaseService.instance.client;
     if (client != null) {
       try {
-        await client.from('quotations').upsert({
+        await client.from('quotations').insert({
           'quote_number': item.quoteNumber,
           'customer_name': item.customerName,
           'event_type': item.eventType,
-          'venue': item.venue,
-          'date': item.quotationDate,
-          'due_date': item.dueDate,
-          'total_amount': item.grandTotal,
+          'date': item.date,
+          'total_amount': item.totalAmount,
           'status': item.status,
-        }, onConflict: 'quote_number');
-        if (kDebugMode) print('✅ Supabase addQuotation Success');
+        });
       } catch (e) {
-        if (kDebugMode) print('❌ Supabase addQuotation Error: $e');
+        if (kDebugMode) print('Supabase addQuotation Error: $e');
       }
     }
   }
@@ -596,16 +616,15 @@ class AppDataRepository extends ChangeNotifier {
     final client = SupabaseService.instance.client;
     if (client != null) {
       try {
-        final res = await client.from('expenses').insert({
+        await client.from('expenses').insert({
           'title': item.title,
           'category': item.category,
           'amount': item.amount,
           'date': item.date,
           'payment_method': item.paymentMethod,
-        }).select();
-        if (kDebugMode) print('✅ Supabase addExpense Success: $res');
+        });
       } catch (e) {
-        if (kDebugMode) print('❌ Supabase addExpense Error: $e');
+        if (kDebugMode) print('Supabase addExpense Error: $e');
       }
     }
   }
@@ -617,16 +636,29 @@ class AppDataRepository extends ChangeNotifier {
     final client = SupabaseService.instance.client;
     if (client != null) {
       try {
-        final res = await client.from('vendors').insert({
+        await client.from('vendors').insert({
           'name': item.name,
           'category': item.category,
           'phone': item.phone,
           'email': item.email,
           'rating': item.rating,
-        }).select();
-        if (kDebugMode) print('✅ Supabase addVendor Success: $res');
+        });
       } catch (e) {
-        if (kDebugMode) print('❌ Supabase addVendor Error: $e');
+        if (kDebugMode) print('Supabase addVendor Error: $e');
+      }
+    }
+  }
+
+  Future<void> deleteVendor(String id) async {
+    vendors.removeWhere((v) => v.id == id);
+    notifyListeners();
+
+    final client = SupabaseService.instance.client;
+    if (client != null) {
+      try {
+        await client.from('vendors').delete().eq('id', id);
+      } catch (e) {
+        if (kDebugMode) print('Supabase deleteVendor Error: $e');
       }
     }
   }
@@ -638,16 +670,29 @@ class AppDataRepository extends ChangeNotifier {
     final client = SupabaseService.instance.client;
     if (client != null) {
       try {
-        final res = await client.from('venues').insert({
+        await client.from('venues').insert({
           'name': item.name,
           'location': item.location,
           'capacity': item.capacity,
           'price_per_day': item.pricePerDay,
           'contact_person': item.contactPerson,
-        }).select();
-        if (kDebugMode) print('✅ Supabase addVenue Success: $res');
+        });
       } catch (e) {
-        if (kDebugMode) print('❌ Supabase addVenue Error: $e');
+        if (kDebugMode) print('Supabase addVenue Error: $e');
+      }
+    }
+  }
+
+  Future<void> deleteVenue(String id) async {
+    venues.removeWhere((v) => v.id == id);
+    notifyListeners();
+
+    final client = SupabaseService.instance.client;
+    if (client != null) {
+      try {
+        await client.from('venues').delete().eq('id', id);
+      } catch (e) {
+        if (kDebugMode) print('Supabase deleteVenue Error: $e');
       }
     }
   }
@@ -659,15 +704,28 @@ class AppDataRepository extends ChangeNotifier {
     final client = SupabaseService.instance.client;
     if (client != null) {
       try {
-        final res = await client.from('inventory').insert({
+        await client.from('inventory').insert({
           'item_name': item.itemName,
           'category': item.category,
           'quantity': item.quantity,
           'rental_price': item.rentalPrice,
-        }).select();
-        if (kDebugMode) print('✅ Supabase addInventory Success: $res');
+        });
       } catch (e) {
-        if (kDebugMode) print('❌ Supabase addInventory Error: $e');
+        if (kDebugMode) print('Supabase addInventory Error: $e');
+      }
+    }
+  }
+
+  Future<void> deleteInventory(String id) async {
+    inventory.removeWhere((i) => i.id == id);
+    notifyListeners();
+
+    final client = SupabaseService.instance.client;
+    if (client != null) {
+      try {
+        await client.from('inventory').delete().eq('id', id);
+      } catch (e) {
+        if (kDebugMode) print('Supabase deleteInventory Error: $e');
       }
     }
   }
@@ -733,9 +791,8 @@ class AppDataRepository extends ChangeNotifier {
             });
           }
         }
-        if (kDebugMode) print('✅ Supabase saveInvoice Success!');
       } catch (e) {
-        if (kDebugMode) print('❌ Supabase saveInvoice Error: $e');
+        if (kDebugMode) print('Supabase saveInvoice Error: $e');
       }
     }
   }
@@ -748,88 +805,9 @@ class AppDataRepository extends ChangeNotifier {
     if (client != null) {
       try {
         await client.from('invoices').delete().eq('invoice_number', invoiceNumber);
-        if (kDebugMode) print('✅ Supabase deleteInvoice Success!');
       } catch (e) {
-        if (kDebugMode) print('❌ Supabase deleteInvoice Error: $e');
+        if (kDebugMode) print('Supabase deleteInvoice Error: $e');
       }
     }
-  }
-
-  Future<void> updateQuotation(QuotationModel item) async {
-    final idx = quotations.indexWhere((q) => q.id == item.id);
-    if (idx >= 0) {
-      quotations[idx] = item;
-      notifyListeners();
-    }
-  }
-
-  Future<void> deleteQuotation(String id) async {
-    quotations.removeWhere((q) => q.id == id);
-    notifyListeners();
-  }
-
-  Future<void> updateEnquiry(EnquiryModel item) async {
-    final idx = enquiries.indexWhere((e) => e.id == item.id);
-    if (idx >= 0) {
-      enquiries[idx] = item;
-      notifyListeners();
-    }
-  }
-
-  Future<void> deleteEnquiry(String id) async {
-    enquiries.removeWhere((e) => e.id == id);
-    notifyListeners();
-  }
-
-  Future<void> updateVendor(VendorModel item) async {
-    final idx = vendors.indexWhere((v) => v.id == item.id);
-    if (idx >= 0) {
-      vendors[idx] = item;
-      notifyListeners();
-    }
-  }
-
-  Future<void> deleteVendor(String id) async {
-    vendors.removeWhere((v) => v.id == id);
-    notifyListeners();
-  }
-
-  Future<void> updateVenue(VenueModel item) async {
-    final idx = venues.indexWhere((v) => v.id == item.id);
-    if (idx >= 0) {
-      venues[idx] = item;
-      notifyListeners();
-    }
-  }
-
-  Future<void> deleteVenue(String id) async {
-    venues.removeWhere((v) => v.id == id);
-    notifyListeners();
-  }
-
-  Future<void> updateInventory(InventoryModel item) async {
-    final idx = inventory.indexWhere((i) => i.id == item.id);
-    if (idx >= 0) {
-      inventory[idx] = item;
-      notifyListeners();
-    }
-  }
-
-  Future<void> deleteInventory(String id) async {
-    inventory.removeWhere((i) => i.id == id);
-    notifyListeners();
-  }
-
-  Future<void> updatePayment(PaymentModel item) async {
-    final idx = payments.indexWhere((p) => p.id == item.id);
-    if (idx >= 0) {
-      payments[idx] = item;
-      notifyListeners();
-    }
-  }
-
-  Future<void> deletePayment(String id) async {
-    payments.removeWhere((p) => p.id == id);
-    notifyListeners();
   }
 }
