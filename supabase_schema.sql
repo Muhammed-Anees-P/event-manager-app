@@ -131,14 +131,17 @@ CREATE TABLE IF NOT EXISTS public.invoices (
     venue TEXT NOT NULL,
     invoice_date TEXT NOT NULL,
     due_date TEXT NOT NULL,
+    show_due_date BOOLEAN NOT NULL DEFAULT true,
     show_discount BOOLEAN NOT NULL DEFAULT false,
     discount_amount NUMERIC NOT NULL DEFAULT 0,
-    show_tax BOOLEAN NOT NULL DEFAULT true,
+    show_tax BOOLEAN NOT NULL DEFAULT false,
     tax_percentage NUMERIC NOT NULL DEFAULT 18,
     show_advance_paid BOOLEAN NOT NULL DEFAULT false,
     advance_paid NUMERIC NOT NULL DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS show_due_date BOOLEAN NOT NULL DEFAULT true;
 
 -- 13. INVOICE SECTIONS & ITEMS
 CREATE TABLE IF NOT EXISTS public.invoice_sections (
