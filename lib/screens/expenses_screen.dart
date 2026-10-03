@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../data/app_data_repository.dart';
 import '../models/expense_model.dart';
 import '../theme/app_theme.dart';
+import '../utils/date_formatter.dart';
 
 class ExpensesScreen extends StatefulWidget {
   const ExpensesScreen({super.key});
@@ -193,7 +194,7 @@ class _CreateExpenseModalState extends State<_CreateExpenseModal> {
                       title: titleController.text.trim(),
                       category: selectedCategory,
                       amount: double.tryParse(amountController.text.trim()) ?? 0,
-                      date: '12 Sep 2026',
+                      date: AppDateUtils.getTodayDate(),
                       paymentMethod: selectedMethod,
                     );
                     await AppDataRepository.instance.addExpense(expense);
