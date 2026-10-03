@@ -154,14 +154,27 @@ class _EventsScreenState extends State<EventsScreen> {
           // Events List
           Expanded(
             child: filteredEvents.isEmpty
-                ? const Center(child: Text('No events found.'))
-                : ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: filteredEvents.length,
-                    itemBuilder: (context, index) {
-                      final event = filteredEvents[index];
-                      return _buildEventCard(event);
-                    },
+                ? RefreshIndicator(
+                    onRefresh: () async => await repository.fetchAllFromSupabase(),
+                    child: ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: const [
+                        SizedBox(height: 150),
+                        Center(child: Text('No events found.')),
+                      ],
+                    ),
+                  )
+                : RefreshIndicator(
+                    onRefresh: () async => await repository.fetchAllFromSupabase(),
+                    child: ListView.builder(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.all(16),
+                      itemCount: filteredEvents.length,
+                      itemBuilder: (context, index) {
+                        final event = filteredEvents[index];
+                        return _buildEventCard(event);
+                      },
+                    ),
                   ),
           ),
         ],

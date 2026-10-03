@@ -45,68 +45,74 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final bool isDesktop = constraints.maxWidth >= 900;
-        return SingleChildScrollView(
-          padding: EdgeInsets.all(isDesktop ? 24 : 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 1. KPI Cards Grid
-              _buildKpiGrid(isDesktop),
-              const SizedBox(height: 24),
-
-              // 2. Charts Row
-              if (isDesktop)
-                const Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(flex: 5, child: RevenueChart()),
-                    SizedBox(width: 20),
-                    Expanded(flex: 3, child: EventStatusChart()),
-                  ],
-                )
-              else
-                const Column(
-                  children: [
-                    RevenueChart(),
-                    SizedBox(height: 16),
-                    EventStatusChart(),
-                  ],
-                ),
-              const SizedBox(height: 24),
-
-              // 3. Upcoming Events & Tasks Due Today Row
-              if (isDesktop)
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(flex: 5, child: _buildUpcomingEvents(context)),
-                    const SizedBox(width: 20),
-                    Expanded(flex: 4, child: _buildTasksDueToday(context)),
-                  ],
-                )
-              else ...[
-                _buildUpcomingEvents(context),
+        return RefreshIndicator(
+          onRefresh: () async {
+            await repository.fetchAllFromSupabase();
+          },
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.all(isDesktop ? 24 : 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 1. KPI Cards Grid
+                _buildKpiGrid(isDesktop),
                 const SizedBox(height: 24),
-                _buildTasksDueToday(context),
-              ],
-              const SizedBox(height: 24),
 
-              // 4. Recent Enquiries & Recent Payments
-              if (isDesktop)
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(flex: 5, child: _buildRecentEnquiries(context)),
-                    const SizedBox(width: 20),
-                    Expanded(flex: 4, child: _buildRecentPayments(context)),
-                  ],
-                )
-              else ...[
-                _buildRecentEnquiries(context),
+                // 2. Charts Row
+                if (isDesktop)
+                  const Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(flex: 5, child: RevenueChart()),
+                      SizedBox(width: 20),
+                      Expanded(flex: 3, child: EventStatusChart()),
+                    ],
+                  )
+                else
+                  const Column(
+                    children: [
+                      RevenueChart(),
+                      SizedBox(height: 16),
+                      EventStatusChart(),
+                    ],
+                  ),
                 const SizedBox(height: 24),
-                _buildRecentPayments(context),
+
+                // 3. Upcoming Events & Tasks Due Today Row
+                if (isDesktop)
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(flex: 5, child: _buildUpcomingEvents(context)),
+                      const SizedBox(width: 20),
+                      Expanded(flex: 4, child: _buildTasksDueToday(context)),
+                    ],
+                  )
+                else ...[
+                  _buildUpcomingEvents(context),
+                  const SizedBox(height: 24),
+                  _buildTasksDueToday(context),
+                ],
+                const SizedBox(height: 24),
+
+                // 4. Recent Enquiries & Recent Payments
+                if (isDesktop)
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(flex: 5, child: _buildRecentEnquiries(context)),
+                      const SizedBox(width: 20),
+                      Expanded(flex: 4, child: _buildRecentPayments(context)),
+                    ],
+                  )
+                else ...[
+                  _buildRecentEnquiries(context),
+                  const SizedBox(height: 24),
+                  _buildRecentPayments(context),
+                ],
               ],
-            ],
+            ),
           ),
         );
       },

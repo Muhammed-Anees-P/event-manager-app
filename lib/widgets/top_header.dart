@@ -223,6 +223,18 @@ class TopHeader extends StatelessWidget {
                 tooltip: 'Help & Support (+91 9747451938)',
               ),
               IconButton(
+                onPressed: () async {
+                  await repository.fetchAllFromSupabase();
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Data refreshed successfully from server!'), duration: Duration(seconds: 2)),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.refresh, color: Color(0xFF4B5563)),
+                tooltip: 'Refresh Data',
+              ),
+              IconButton(
                 onPressed: onOpenSettings,
                 icon: const Icon(Icons.settings_outlined, color: Color(0xFF4B5563)),
                 tooltip: 'Company Settings',
