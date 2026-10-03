@@ -325,6 +325,7 @@ class AppDataRepository extends ChangeNotifier {
           venue: invMap['venue'] ?? '',
           invoiceDate: invMap['invoice_date'] ?? '',
           dueDate: invMap['due_date'] ?? '',
+          showDueDate: invMap['show_due_date'] ?? true,
           sections: parsedSections,
           showDiscount: invMap['show_discount'] ?? false,
           discountAmount: (invMap['discount_amount'] as num?)?.toDouble() ?? 0.0,
@@ -382,7 +383,7 @@ class AppDataRepository extends ChangeNotifier {
     final client = SupabaseService.instance.client;
     if (client != null) {
       try {
-        final res = await client.from('events').insert({
+        await client.from('events').insert({
           'code': item.code,
           'title': item.title,
           'date': item.date,
@@ -393,10 +394,9 @@ class AppDataRepository extends ChangeNotifier {
           'status': item.status.name,
           'contract_value': item.contractValue,
           'amount_received': item.amountReceived,
-        }).select();
-        if (kDebugMode) print('✅ Supabase addEvent Success: $res');
+        });
       } catch (e) {
-        if (kDebugMode) print('❌ Supabase addEvent Error: $e');
+        if (kDebugMode) print('Supabase addEvent Error: $e');
       }
     }
   }
@@ -539,6 +539,23 @@ class AppDataRepository extends ChangeNotifier {
 
   Future<void> addPayment(PaymentModel item) async {
     payments.insert(0, item);
+
+    // Auto sync linked event status & amount received
+    final searchName = item.eventType.toLowerCase().trim();
+    for (var event in events) {
+      final mgr = event.manager.toLowerCase().trim();
+      final title = event.title.toLowerCase().trim();
+      if (mgr.contains(searchName) || searchName.contains(mgr) || title.contains(searchName) || searchName.contains(title)) {
+        event.amountReceived += item.amount;
+        if (event.amountReceived >= event.contractValue && event.contractValue > 0) {
+          event.status = EventStatus.completed;
+        } else if (event.amountReceived > 0 && event.status == EventStatus.planning) {
+          event.status = EventStatus.confirmed;
+        }
+        updateEvent(event);
+      }
+    }
+
     notifyListeners();
 
     final client = SupabaseService.instance.client;
@@ -765,6 +782,7 @@ class AppDataRepository extends ChangeNotifier {
           'venue': item.venue,
           'invoice_date': item.invoiceDate,
           'due_date': item.dueDate,
+          'show_due_date': item.showDueDate,
           'show_discount': item.showDiscount,
           'discount_amount': item.discountAmount,
           'show_tax': item.showTax,
@@ -773,7 +791,19 @@ class AppDataRepository extends ChangeNotifier {
           'advance_paid': item.advancePaid,
         }, onConflict: 'invoice_number');
 
-        await client.from('invoice_sections').delete().eq('invoice_number', item.invoiceNumber);
+        // Clean existing sections & items safely
+        final existingSecs = await client.from('invoice_sections').select('id').eq('invoice_number', item.invoiceNumber);
+        if (existingSecs != null && (existingSecs as List).isNotEmpty) {
+          final secIds = (existingSecs as List).map((s) => s['id'].toString()).toList();
+          for (final sid in secIds) {
+            try {
+              await client.from('invoice_items').delete().eq('section_id', sid);
+            } catch (_) {}
+          }
+          try {
+            await client.from('invoice_sections').delete().eq('invoice_number', item.invoiceNumber);
+          } catch (_) {}
+        }
 
         for (int sIdx = 0; sIdx < item.sections.length; sIdx++) {
           final section = item.sections[sIdx];
@@ -781,18 +811,22 @@ class AppDataRepository extends ChangeNotifier {
             'invoice_number': item.invoiceNumber,
             'heading': section.heading,
             'section_order': sIdx,
-          }).select().single();
+          }).select('id').single();
 
           final String sectionId = secRes['id'].toString();
 
           for (final itemRow in section.items) {
-            await client.from('invoice_items').insert({
-              'section_id': sectionId,
-              'name': itemRow.name,
-              'qty': itemRow.qty,
-              'rate': itemRow.rate,
-              'price': itemRow.price,
-            });
+            try {
+              await client.from('invoice_items').insert({
+                'section_id': sectionId,
+                'name': itemRow.name,
+                'qty': itemRow.qty,
+                'rate': itemRow.rate,
+                'price': itemRow.price,
+              });
+            } catch (itemErr) {
+              if (kDebugMode) print('Supabase invoice_items insert warning: $itemErr');
+            }
           }
         }
       } catch (e) {
