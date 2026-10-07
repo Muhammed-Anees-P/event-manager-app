@@ -131,6 +131,29 @@ class AppDataRepository extends ChangeNotifier {
   List<InventoryModel> inventory = [];
   List<InvoiceModel> invoices = [];
 
+  InvoiceModel? draftInvoice;
+  QuotationModel? draftQuotation;
+
+  void saveInvoiceDraft(InvoiceModel inv) {
+    draftInvoice = inv;
+    notifyListeners();
+  }
+
+  void saveQuotationDraft(QuotationModel quo) {
+    draftQuotation = quo;
+    notifyListeners();
+  }
+
+  void clearInvoiceDraft() {
+    draftInvoice = null;
+    notifyListeners();
+  }
+
+  void clearQuotationDraft() {
+    draftQuotation = null;
+    notifyListeners();
+  }
+
   // Active Non-Soft-Deleted Entity Getters
   List<EventModel> get activeEvents => events.where((e) => !e.isDeleted).toList();
   List<TaskModel> get activeTasks => tasks.where((t) => !t.isDeleted).toList();
@@ -258,8 +281,26 @@ class AppDataRepository extends ChangeNotifier {
       }
       payments = fetchedPayments;
 
-      final quotationsData = await client.from('quotations').select().order('created_at', ascending: false);
+      final quotationsData = await client.from('quotations').select('*, quotation_sections(*, quotation_items(*))').order('created_at', ascending: false);
       quotations = (quotationsData as List).map((map) {
+        final rawSections = map['quotation_sections'] as List? ?? [];
+        final parsedSections = rawSections.map((secMap) {
+          final rawItems = secMap['quotation_items'] as List? ?? [];
+          final parsedItems = rawItems.map((itemMap) {
+            return InvoiceItem(
+              name: itemMap['name'] ?? '',
+              qty: (itemMap['qty'] as num?)?.toDouble(),
+              rate: (itemMap['rate'] as num?)?.toDouble(),
+              price: (itemMap['price'] as num?)?.toDouble() ?? 0.0,
+            );
+          }).toList();
+
+          return InvoiceSection(
+            heading: secMap['heading'] ?? '',
+            items: parsedItems,
+          );
+        }).toList();
+
         return QuotationModel(
           id: map['id'].toString(),
           quoteNumber: map['quote_number'] ?? '',
@@ -267,7 +308,16 @@ class AppDataRepository extends ChangeNotifier {
           venue: map['venue'] ?? '',
           quotationDate: map['date'] ?? '',
           dueDate: map['due_date'] ?? '25 Sep 2026',
-          sections: [],
+          eventType: map['event_type'] ?? 'Wedding Event',
+          sections: parsedSections,
+          showDiscount: map['show_discount'] ?? false,
+          discountAmount: (map['discount_amount'] as num?)?.toDouble() ?? 0.0,
+          showTax: map['show_tax'] ?? false,
+          taxPercentage: (map['tax_percentage'] as num?)?.toDouble() ?? 18.0,
+          showAdvancePaid: map['show_advance_paid'] ?? false,
+          advancePaid: (map['advance_paid'] as num?)?.toDouble() ?? 0.0,
+          manualTotalOverride: map['manual_total_override'] ?? false,
+          manualGrandTotal: (map['manual_grand_total'] as num?)?.toDouble() ?? 0.0,
           status: map['status'] ?? 'Sent',
           isDeleted: map['is_deleted'] ?? false,
         );
@@ -731,24 +781,76 @@ class AppDataRepository extends ChangeNotifier {
     }
   }
 
-  Future<void> addQuotation(QuotationModel item) async {
-    quotations.insert(0, item);
+  Future<void> saveQuotation(QuotationModel item) async {
+    final idx = quotations.indexWhere((q) => q.id == item.id || q.quoteNumber == item.quoteNumber);
+    if (idx >= 0) {
+      quotations[idx] = item;
+    } else {
+      quotations.insert(0, item);
+    }
     notifyListeners();
 
     final client = SupabaseService.instance.client;
     if (client != null) {
       try {
-        await client.from('quotations').insert({
+        await client.from('quotations').upsert({
           'quote_number': item.quoteNumber,
           'customer_name': item.customerName,
-          'event_type': item.eventType,
+          'venue': item.venue,
           'date': item.date,
-          'total_amount': item.totalAmount,
+          'due_date': item.dueDate,
+          'event_type': item.eventType,
+          'show_discount': item.showDiscount,
+          'discount_amount': item.discountAmount,
+          'show_tax': item.showTax,
+          'tax_percentage': item.taxPercentage,
+          'show_advance_paid': item.showAdvancePaid,
+          'advance_paid': item.advancePaid,
+          'manual_total_override': item.manualTotalOverride,
+          'manual_grand_total': item.manualGrandTotal,
           'status': item.status,
-          'is_deleted': false,
-        });
+          'is_deleted': item.isDeleted,
+        }, onConflict: 'quote_number');
+
+        final existingSecs = await client.from('quotation_sections').select('id').eq('quote_number', item.quoteNumber);
+        if (existingSecs != null && (existingSecs as List).isNotEmpty) {
+          final secIds = (existingSecs as List).map((s) => s['id'].toString()).toList();
+          for (final sid in secIds) {
+            try {
+              await client.from('quotation_items').delete().eq('section_id', sid);
+            } catch (_) {}
+          }
+          try {
+            await client.from('quotation_sections').delete().eq('quote_number', item.quoteNumber);
+          } catch (_) {}
+        }
+
+        for (int sIdx = 0; sIdx < item.sections.length; sIdx++) {
+          final section = item.sections[sIdx];
+          final secRes = await client.from('quotation_sections').insert({
+            'quote_number': item.quoteNumber,
+            'heading': section.heading,
+            'section_order': sIdx,
+          }).select('id').single();
+
+          final String sectionId = secRes['id'].toString();
+
+          for (final itemRow in section.items) {
+            try {
+              await client.from('quotation_items').insert({
+                'section_id': sectionId,
+                'name': itemRow.name,
+                'qty': itemRow.qty,
+                'rate': itemRow.rate,
+                'price': itemRow.price,
+              });
+            } catch (itemErr) {
+              if (kDebugMode) print('Supabase quotation_items insert warning: $itemErr');
+            }
+          }
+        }
       } catch (e) {
-        if (kDebugMode) print('Supabase addQuotation Error: $e');
+        if (kDebugMode) print('Supabase saveQuotation Error: $e');
       }
     }
   }

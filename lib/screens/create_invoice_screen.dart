@@ -48,6 +48,9 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   bool _showDiscount = false;
   bool _showTax = false;
   bool _showAdvancePaid = false;
+
+  bool _manualTotalOverride = false;
+  final TextEditingController _manualTotalController = TextEditingController();
   bool _showDueDate = true;
 
   late List<InvoiceSection> _sections;
@@ -229,20 +232,48 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   }
 
   void _resetFormToNew() {
-    _customerController.text = '';
-    _venueController.text = '';
-    _invoiceDateController.text = AppDateUtils.getTodayDate();
-    _dueDateController.text = AppDateUtils.getDueDate(daysFromToday: 15);
-    _invoiceNumberController.text = 'INV-2026-00${repository.invoices.length + 1}';
-    _discountController.text = '0';
-    _taxController.text = '18';
-    _advanceController.text = '0';
+    if (repository.draftInvoice != null) {
+      final di = repository.draftInvoice!;
+      _customerController.text = di.customerName;
+      _venueController.text = di.venue;
+      _invoiceDateController.text = di.invoiceDate;
+      _dueDateController.text = di.dueDate;
+      _invoiceNumberController.text = di.invoiceNumber;
+      _showDueDate = di.showDueDate;
+      _showDiscount = di.showDiscount;
+      _discountController.text = di.discountAmount.toStringAsFixed(0);
+      _showTax = di.showTax;
+      _taxController.text = di.taxPercentage.toStringAsFixed(0);
+      _showAdvancePaid = di.showAdvancePaid;
+      _advanceController.text = di.advancePaid.toStringAsFixed(0);
+      _manualTotalOverride = di.manualTotalOverride;
+      _manualTotalController.text = di.manualGrandTotal.toStringAsFixed(0);
+      _sections = di.sections
+          .map((s) => InvoiceSection(
+                heading: s.heading,
+                items: s.items
+                    .map((i) => InvoiceItem(name: i.name, qty: i.qty, rate: i.rate, price: i.price))
+                    .toList(),
+              ))
+          .toList();
+    } else {
+      _customerController.text = '';
+      _venueController.text = '';
+      _invoiceDateController.text = AppDateUtils.getTodayDate();
+      _dueDateController.text = AppDateUtils.getDueDate(daysFromToday: 15);
+      _invoiceNumberController.text = 'INV-2026-00${repository.invoices.length + 1}';
+      _discountController.text = '0';
+      _taxController.text = '18';
+      _advanceController.text = '0';
+      _manualTotalController.text = '0';
 
-    _showDiscount = false;
-    _showTax = false;
-    _showAdvancePaid = false;
+      _showDiscount = false;
+      _showTax = false;
+      _showAdvancePaid = false;
+      _manualTotalOverride = false;
 
-    _sections = []; // No default dummy data filled in new invoice form
+      _sections = []; // No default dummy data filled in new invoice form
+    }
   }
 
   void _loadInvoiceForEdit(InvoiceModel invoice) {
@@ -261,6 +292,9 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
 
     _showAdvancePaid = invoice.showAdvancePaid;
     _advanceController.text = invoice.advancePaid.toStringAsFixed(0);
+
+    _manualTotalOverride = invoice.manualTotalOverride;
+    _manualTotalController.text = invoice.manualGrandTotal.toStringAsFixed(0);
 
     // Deep copy sections
     _sections = invoice.sections
@@ -300,12 +334,15 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
       taxPercentage: double.tryParse(_taxController.text.trim()) ?? 18.0,
       showAdvancePaid: _showAdvancePaid,
       advancePaid: double.tryParse(_advanceController.text.trim()) ?? 0.0,
+      manualTotalOverride: _manualTotalOverride,
+      manualGrandTotal: double.tryParse(_manualTotalController.text.trim()) ?? 0.0,
     );
   }
 
   void _saveCurrentInvoice() async {
     final invoice = _buildCurrentInvoice();
     await repository.saveInvoice(invoice);
+    repository.clearInvoiceDraft();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Invoice #${invoice.invoiceNumber} saved successfully!')),
@@ -337,62 +374,107 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
     });
   }
 
+  Future<bool> _onWillPop(BuildContext context) async {
+    if (_mainTab == 0) return true;
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Unsaved Changes'),
+        content: const Text('You are editing an invoice. Do you want to save your work before going back?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, 'discard'), child: const Text('Discard', style: TextStyle(color: Colors.red))),
+          TextButton(onPressed: () => Navigator.pop(ctx, 'cancel'), child: const Text('Cancel')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, 'save'), child: const Text('Save Work')),
+        ],
+      ),
+    );
+
+    if (result == 'save') {
+      final inv = _buildCurrentInvoice();
+      repository.saveInvoiceDraft(inv);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Invoice draft saved locally!')),
+        );
+      }
+      return true;
+    } else if (result == 'discard') {
+      repository.clearInvoiceDraft();
+      return true;
+    }
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: AppTheme.background,
-      child: Column(
-        children: [
-          // Main Navigation Bar (2 Tabs)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              border: Border(bottom: BorderSide(color: Color(0xFFE5E7EB))),
+    return PopScope(
+      canPop: _mainTab == 0,
+      onPopInvoked: (didPop) async {
+        if (didPop) return;
+        final shouldPop = await _onWillPop(context);
+        if (shouldPop && context.mounted) {
+          if (widget.onBack != null) {
+            widget.onBack!();
+          } else {
+            Navigator.pop(context);
+          }
+        }
+      },
+      child: Material(
+        color: AppTheme.background,
+        child: Column(
+          children: [
+            // Main Navigation Bar (2 Tabs)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                border: Border(bottom: BorderSide(color: Color(0xFFE5E7EB))),
+              ),
+              child: Row(
+                children: [
+                  if (widget.onBack != null)
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back, color: Color(0xFF1F2937)),
+                      onPressed: widget.onBack,
+                    ),
+                  Expanded(
+                    child: Row(
+                      children: [
+                        _buildMainTabButton(0, Icons.receipt_long, 'All Invoices (${repository.invoices.length})'),
+                        const SizedBox(width: 8),
+                        _buildMainTabButton(1, Icons.tune, 'Invoice Form & Customization'),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _resetFormToNew();
+                        _mainTab = 1;
+                        _formSubTab = 0;
+                      });
+                    },
+                    icon: const Icon(Icons.add, size: 16),
+                    label: const Text('+ Create New Invoice'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primary,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(0, 38),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            child: Row(
-              children: [
-                if (widget.onBack != null)
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back, color: Color(0xFF1F2937)),
-                    onPressed: widget.onBack,
-                  ),
-                Expanded(
-                  child: Row(
-                    children: [
-                      _buildMainTabButton(0, Icons.receipt_long, 'All Invoices (${repository.invoices.length})'),
-                      const SizedBox(width: 8),
-                      _buildMainTabButton(1, Icons.tune, 'Invoice Form & Customization'),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    setState(() {
-                      _resetFormToNew();
-                      _mainTab = 1;
-                      _formSubTab = 0;
-                    });
-                  },
-                  icon: const Icon(Icons.add, size: 16),
-                  label: const Text('+ Create New Invoice'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primary,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size(0, 38),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
-                ),
-              ],
-            ),
-          ),
 
-          // Main Content View based on _mainTab
-          Expanded(
-            child: _mainTab == 0 ? _buildAllInvoicesTab() : _buildInvoiceCustomizationTab(),
-          ),
-        ],
+            // Main Content View based on _mainTab
+            Expanded(
+              child: _mainTab == 0 ? _buildAllInvoicesTab() : _buildInvoiceCustomizationTab(),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -959,6 +1041,29 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                       controller: _advanceController,
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(labelText: 'Advance Amount Received (₹)'),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ),
+
+                const Divider(),
+
+                Material(
+                  color: Colors.transparent,
+                  child: SwitchListTile(
+                    title: const Text('Manual Total Amount Override (Optional)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                    subtitle: const Text('Enable to directly edit/control the total amount without itemizing'),
+                    value: _manualTotalOverride,
+                    activeColor: AppTheme.primary,
+                    onChanged: (val) => setState(() => _manualTotalOverride = val),
+                  ),
+                ),
+                if (_manualTotalOverride)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                    child: TextField(
+                      controller: _manualTotalController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'Custom Total Amount (₹)'),
                       onChanged: (_) => setState(() {}),
                     ),
                   ),

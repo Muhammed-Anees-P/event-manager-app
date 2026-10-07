@@ -32,6 +32,16 @@ class _CreateQuotationScreenState extends State<CreateQuotationScreen> {
   final TextEditingController _quoteNumberController = TextEditingController();
   final TextEditingController _eventTypeController = TextEditingController();
 
+  final TextEditingController _discountController = TextEditingController();
+  final TextEditingController _taxController = TextEditingController();
+  final TextEditingController _advanceController = TextEditingController();
+  final TextEditingController _manualTotalController = TextEditingController();
+
+  bool _showDiscount = false;
+  bool _showTax = false;
+  bool _showAdvancePaid = false;
+  bool _manualTotalOverride = false;
+
   late List<InvoiceSection> _sections;
 
   @override
@@ -49,6 +59,10 @@ class _CreateQuotationScreenState extends State<CreateQuotationScreen> {
     _quotationDateController.dispose();
     _quoteNumberController.dispose();
     _eventTypeController.dispose();
+    _discountController.dispose();
+    _taxController.dispose();
+    _advanceController.dispose();
+    _manualTotalController.dispose();
     super.dispose();
   }
 
@@ -62,6 +76,15 @@ class _CreateQuotationScreenState extends State<CreateQuotationScreen> {
     _quotationDateController.text = AppDateUtils.getTodayDate();
     _quoteNumberController.text = 'QT-2026-00${repository.quotations.length + 1}';
     _eventTypeController.text = 'Wedding Event';
+    _discountController.text = '0';
+    _taxController.text = '18';
+    _advanceController.text = '0';
+    _manualTotalController.text = '0';
+
+    _showDiscount = false;
+    _showTax = false;
+    _showAdvancePaid = false;
+    _manualTotalOverride = false;
 
     _sections = []; // Empty sections list for fresh quotation creation
   }
@@ -72,6 +95,18 @@ class _CreateQuotationScreenState extends State<CreateQuotationScreen> {
     _quotationDateController.text = quotation.quotationDate;
     _quoteNumberController.text = quotation.quoteNumber;
     _eventTypeController.text = quotation.eventType;
+
+    _showDiscount = quotation.showDiscount;
+    _discountController.text = quotation.discountAmount.toStringAsFixed(0);
+
+    _showTax = quotation.showTax;
+    _taxController.text = quotation.taxPercentage.toStringAsFixed(0);
+
+    _showAdvancePaid = quotation.showAdvancePaid;
+    _advanceController.text = quotation.advancePaid.toStringAsFixed(0);
+
+    _manualTotalOverride = quotation.manualTotalOverride;
+    _manualTotalController.text = quotation.manualGrandTotal.toStringAsFixed(0);
 
     _sections = quotation.sections
         .map((s) => InvoiceSection(
@@ -105,13 +140,21 @@ class _CreateQuotationScreenState extends State<CreateQuotationScreen> {
       dueDate: '25 Sep 2026',
       eventType: _eventTypeController.text.trim(),
       sections: _sections,
+      showDiscount: _showDiscount,
+      discountAmount: double.tryParse(_discountController.text.trim()) ?? 0.0,
+      showTax: _showTax,
+      taxPercentage: double.tryParse(_taxController.text.trim()) ?? 18.0,
+      showAdvancePaid: _showAdvancePaid,
+      advancePaid: double.tryParse(_advanceController.text.trim()) ?? 0.0,
+      manualTotalOverride: _manualTotalOverride,
+      manualGrandTotal: double.tryParse(_manualTotalController.text.trim()) ?? 0.0,
       status: 'Sent',
     );
   }
 
   void _saveCurrentQuotation() async {
     final quotation = _buildCurrentQuotation();
-    await repository.addQuotation(quotation);
+    await repository.saveQuotation(quotation);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Quotation #${quotation.quoteNumber} saved successfully!')),
@@ -143,62 +186,100 @@ class _CreateQuotationScreenState extends State<CreateQuotationScreen> {
     });
   }
 
+  Future<bool> _onWillPop(BuildContext context) async {
+    if (_mainTab == 0) return true;
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Unsaved Changes'),
+        content: const Text('You are editing a quotation. Do you want to save your work before going back?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, 'discard'), child: const Text('Discard', style: TextStyle(color: Colors.red))),
+          TextButton(onPressed: () => Navigator.pop(ctx, 'cancel'), child: const Text('Cancel')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, 'save'), child: const Text('Save Work')),
+        ],
+      ),
+    );
+
+    if (result == 'save') {
+      _saveCurrentQuotation();
+      return false;
+    } else if (result == 'discard') {
+      return true;
+    }
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: AppTheme.background,
-      child: Column(
-        children: [
-          // Navigation Bar (2 Tabs)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              border: Border(bottom: BorderSide(color: Color(0xFFE5E7EB))),
+    return PopScope(
+      canPop: _mainTab == 0,
+      onPopInvoked: (didPop) async {
+        if (didPop) return;
+        final shouldPop = await _onWillPop(context);
+        if (shouldPop && context.mounted) {
+          if (widget.onBack != null) {
+            widget.onBack!();
+          } else {
+            Navigator.pop(context);
+          }
+        }
+      },
+      child: Material(
+        color: AppTheme.background,
+        child: Column(
+          children: [
+            // Navigation Bar (2 Tabs)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                border: Border(bottom: BorderSide(color: Color(0xFFE5E7EB))),
+              ),
+              child: Row(
+                children: [
+                  if (widget.onBack != null)
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back, color: Color(0xFF1F2937)),
+                      onPressed: widget.onBack,
+                    ),
+                  Expanded(
+                    child: Row(
+                      children: [
+                        _buildMainTabButton(0, Icons.description_outlined, 'All Quotations (${repository.quotations.length})'),
+                        const SizedBox(width: 8),
+                        _buildMainTabButton(1, Icons.tune, 'Quotation Form & Customization'),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _resetFormToNew();
+                        _mainTab = 1;
+                        _formSubTab = 0;
+                      });
+                    },
+                    icon: const Icon(Icons.add, size: 16),
+                    label: const Text('+ Create New Quotation'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primary,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(0, 38),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            child: Row(
-              children: [
-                if (widget.onBack != null)
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back, color: Color(0xFF1F2937)),
-                    onPressed: widget.onBack,
-                  ),
-                Expanded(
-                  child: Row(
-                    children: [
-                      _buildMainTabButton(0, Icons.description_outlined, 'All Quotations (${repository.quotations.length})'),
-                      const SizedBox(width: 8),
-                      _buildMainTabButton(1, Icons.tune, 'Quotation Form & Customization'),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    setState(() {
-                      _resetFormToNew();
-                      _mainTab = 1;
-                      _formSubTab = 0;
-                    });
-                  },
-                  icon: const Icon(Icons.add, size: 16),
-                  label: const Text('+ Create New Quotation'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primary,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size(0, 38),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
-                ),
-              ],
-            ),
-          ),
 
-          // Body
-          Expanded(
-            child: _mainTab == 0 ? _buildAllQuotationsTab() : _buildQuotationCustomizationTab(),
-          ),
-        ],
+            // Body
+            Expanded(
+              child: _mainTab == 0 ? _buildAllQuotationsTab() : _buildQuotationCustomizationTab(),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -613,6 +694,106 @@ class _CreateQuotationScreenState extends State<CreateQuotationScreen> {
             ),
           ),
           const SizedBox(height: 24),
+
+          _buildFormCard(
+            title: '3. Calculations & Optional Print Toggles',
+            icon: Icons.calculate_outlined,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Material(
+                  color: Colors.transparent,
+                  child: SwitchListTile(
+                    title: const Text('Apply Discount (Optional)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                    subtitle: const Text('Enable to enter discount amount and print on quotation'),
+                    value: _showDiscount,
+                    activeColor: AppTheme.primary,
+                    onChanged: (val) => setState(() => _showDiscount = val),
+                  ),
+                ),
+                if (_showDiscount)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                    child: TextField(
+                      controller: _discountController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'Discount Amount (₹)'),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ),
+
+                const Divider(),
+
+                Material(
+                  color: Colors.transparent,
+                  child: SwitchListTile(
+                    title: const Text('Apply Tax / GST (Optional)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                    subtitle: const Text('Enable to include tax percentage on quotation'),
+                    value: _showTax,
+                    activeColor: AppTheme.primary,
+                    onChanged: (val) => setState(() => _showTax = val),
+                  ),
+                ),
+                if (_showTax)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                    child: TextField(
+                      controller: _taxController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'Tax Percentage (%)'),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ),
+
+                const Divider(),
+
+                Material(
+                  color: Colors.transparent,
+                  child: SwitchListTile(
+                    title: const Text('Advance Paid (Optional)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                    subtitle: const Text('Enable to deduct advance paid and show Balance Due'),
+                    value: _showAdvancePaid,
+                    activeColor: AppTheme.primary,
+                    onChanged: (val) => setState(() => _showAdvancePaid = val),
+                  ),
+                ),
+                if (_showAdvancePaid)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                    child: TextField(
+                      controller: _advanceController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'Advance Amount Received (₹)'),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ),
+
+                const Divider(),
+
+                Material(
+                  color: Colors.transparent,
+                  child: SwitchListTile(
+                    title: const Text('Manual Total Amount Override (Optional)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                    subtitle: const Text('Enable to directly edit/control the total amount without itemizing'),
+                    value: _manualTotalOverride,
+                    activeColor: AppTheme.primary,
+                    onChanged: (val) => setState(() => _manualTotalOverride = val),
+                  ),
+                ),
+                if (_manualTotalOverride)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                    child: TextField(
+                      controller: _manualTotalController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'Custom Total Amount (₹)'),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
 
           Container(
             padding: const EdgeInsets.all(18),

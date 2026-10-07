@@ -62,6 +62,9 @@ class InvoiceModel {
 
   bool showAdvancePaid;
   double advancePaid;
+
+  bool manualTotalOverride;
+  double manualGrandTotal;
   bool isDeleted;
 
   InvoiceModel({
@@ -70,7 +73,7 @@ class InvoiceModel {
     required this.venue,
     required this.invoiceDate,
     required this.dueDate,
-    bool? showDueDate,
+    this.showDueDate = true,
     required this.sections,
     this.showDiscount = false,
     this.discountAmount = 0.0,
@@ -78,8 +81,10 @@ class InvoiceModel {
     this.taxPercentage = 18.0,
     this.showAdvancePaid = false,
     this.advancePaid = 0.0,
+    this.manualTotalOverride = false,
+    this.manualGrandTotal = 0.0,
     this.isDeleted = false,
-  }) : showDueDate = showDueDate ?? true;
+  });
 
   double get rawSubtotal => sections.fold(0, (sum, section) => sum + section.subtotal);
 
@@ -89,7 +94,7 @@ class InvoiceModel {
 
   double get calculatedTax => showTax ? (subtotalAfterDiscount * (taxPercentage / 100)) : 0.0;
 
-  double get grandTotal => subtotalAfterDiscount + calculatedTax;
+  double get grandTotal => manualTotalOverride ? manualGrandTotal : (subtotalAfterDiscount + calculatedTax);
 
   double get calculatedAdvance => showAdvancePaid ? advancePaid : 0.0;
 

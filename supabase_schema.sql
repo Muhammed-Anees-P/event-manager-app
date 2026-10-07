@@ -75,12 +75,39 @@ CREATE TABLE IF NOT EXISTS public.quotations (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     quote_number TEXT NOT NULL UNIQUE,
     customer_name TEXT NOT NULL,
-    event_type TEXT NOT NULL,
+    venue TEXT NOT NULL DEFAULT '',
+    event_type TEXT NOT NULL DEFAULT 'Wedding Event',
     date TEXT NOT NULL,
+    due_date TEXT NOT NULL DEFAULT '25 Sep 2026',
+    show_discount BOOLEAN NOT NULL DEFAULT false,
+    discount_amount NUMERIC NOT NULL DEFAULT 0,
+    show_tax BOOLEAN NOT NULL DEFAULT false,
+    tax_percentage NUMERIC NOT NULL DEFAULT 18,
+    show_advance_paid BOOLEAN NOT NULL DEFAULT false,
+    advance_paid NUMERIC NOT NULL DEFAULT 0,
+    manual_total_override BOOLEAN NOT NULL DEFAULT false,
+    manual_grand_total NUMERIC NOT NULL DEFAULT 0,
     total_amount NUMERIC NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'Sent', -- Draft, Sent, Accepted, Rejected
     is_deleted BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- QUOTATION SECTIONS & ITEMS (RELATIONAL)
+CREATE TABLE IF NOT EXISTS public.quotation_sections (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    quote_number TEXT NOT NULL REFERENCES public.quotations(quote_number) ON DELETE CASCADE,
+    heading TEXT NOT NULL,
+    section_order INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS public.quotation_items (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    section_id UUID NOT NULL REFERENCES public.quotation_sections(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    qty NUMERIC,
+    rate NUMERIC,
+    price NUMERIC NOT NULL DEFAULT 0
 );
 
 -- 8. EXPENSES TABLE
@@ -145,6 +172,9 @@ CREATE TABLE IF NOT EXISTS public.invoices (
     tax_percentage NUMERIC NOT NULL DEFAULT 18,
     show_advance_paid BOOLEAN NOT NULL DEFAULT false,
     advance_paid NUMERIC NOT NULL DEFAULT 0,
+    manual_total_override BOOLEAN NOT NULL DEFAULT false,
+    manual_grand_total NUMERIC NOT NULL DEFAULT 0,
+    total_amount NUMERIC NOT NULL DEFAULT 0,
     is_deleted BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
@@ -171,7 +201,7 @@ CREATE TABLE IF NOT EXISTS public.company_settings (
     id TEXT PRIMARY KEY DEFAULT 'default',
     company_name TEXT NOT NULL DEFAULT 'Haya Event Management',
     company_phone TEXT NOT NULL DEFAULT '+91 9747451938',
-    company_email TEXT NOT NULL DEFAULT 'admin@hayaevents.com',
+    company_email TEXT NOT NULL DEFAULT 'hayaeventmanagement.info@gmail.com',
     company_address TEXT NOT NULL DEFAULT 'Central Avenue, Tech Park, Mumbai',
     company_gstin TEXT NOT NULL DEFAULT '27ABCDE1234F1Z5',
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
@@ -209,6 +239,8 @@ ALTER TABLE public.enquiries DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.customers DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payments DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.quotations DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.quotation_sections DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.quotation_items DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.expenses DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.vendors DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.venues DISABLE ROW LEVEL SECURITY;
