@@ -301,6 +301,21 @@ class AppDataRepository extends ChangeNotifier {
           );
         }).toList();
 
+        final double dbTotalAmount = (map['total_amount'] as num? ?? 0).toDouble();
+        if (parsedSections.isEmpty && dbTotalAmount > 0) {
+          parsedSections.add(
+            InvoiceSection(
+              heading: 'Event Services',
+              items: [
+                InvoiceItem(
+                  name: map['event_type'] ?? 'Quotation Package',
+                  price: dbTotalAmount,
+                ),
+              ],
+            ),
+          );
+        }
+
         return QuotationModel(
           id: map['id'].toString(),
           quoteNumber: map['quote_number'] ?? '',
@@ -394,6 +409,21 @@ class AppDataRepository extends ChangeNotifier {
           );
         }).toList();
 
+        final double dbInvoiceTotal = (invMap['total_amount'] as num? ?? 0).toDouble();
+        if (parsedSections.isEmpty && dbInvoiceTotal > 0) {
+          parsedSections.add(
+            InvoiceSection(
+              heading: 'Event Services',
+              items: [
+                InvoiceItem(
+                  name: 'Invoice Services',
+                  price: dbInvoiceTotal,
+                ),
+              ],
+            ),
+          );
+        }
+
         return InvoiceModel(
           invoiceNumber: invMap['invoice_number'] ?? '',
           customerName: invMap['customer_name'] ?? '',
@@ -408,6 +438,8 @@ class AppDataRepository extends ChangeNotifier {
           taxPercentage: (invMap['tax_percentage'] as num?)?.toDouble() ?? 18.0,
           showAdvancePaid: invMap['show_advance_paid'] ?? false,
           advancePaid: (invMap['advance_paid'] as num?)?.toDouble() ?? 0.0,
+          manualTotalOverride: invMap['manual_total_override'] ?? false,
+          manualGrandTotal: (invMap['manual_grand_total'] as num?)?.toDouble() ?? 0.0,
           isDeleted: invMap['is_deleted'] ?? false,
         );
       }).toList();
@@ -793,7 +825,7 @@ class AppDataRepository extends ChangeNotifier {
     final client = SupabaseService.instance.client;
     if (client != null) {
       try {
-        await client.from('quotations').upsert({
+        final Map<String, dynamic> payload = {
           'quote_number': item.quoteNumber,
           'customer_name': item.customerName,
           'venue': item.venue,
@@ -808,9 +840,44 @@ class AppDataRepository extends ChangeNotifier {
           'advance_paid': item.advancePaid,
           'manual_total_override': item.manualTotalOverride,
           'manual_grand_total': item.manualGrandTotal,
+          'total_amount': item.totalAmount,
           'status': item.status,
           'is_deleted': item.isDeleted,
-        }, onConflict: 'quote_number');
+        };
+
+        bool quotationUpsertSucceeded = false;
+        try {
+          await client.from('quotations').upsert(payload, onConflict: 'quote_number');
+          quotationUpsertSucceeded = true;
+        } catch (e) {
+          if (kDebugMode) print('Supabase saveQuotation full payload error: $e');
+          try {
+            // Stage 2: Try without 'venue' in case 'venue' column is missing in user table
+            final Map<String, dynamic> payloadNoVenue = Map.from(payload)..remove('venue');
+            await client.from('quotations').upsert(payloadNoVenue, onConflict: 'quote_number');
+            quotationUpsertSucceeded = true;
+          } catch (e2) {
+            if (kDebugMode) print('Supabase saveQuotation payload without venue error: $e2');
+            try {
+              // Stage 3: Minimal fallback satisfying mandatory NOT NULL constraints (quote_number, customer_name, event_type, date)
+              await client.from('quotations').upsert({
+                'quote_number': item.quoteNumber,
+                'customer_name': item.customerName,
+                'event_type': item.eventType.isNotEmpty ? item.eventType : 'Wedding Event',
+                'date': item.date,
+                'status': item.status,
+              }, onConflict: 'quote_number');
+              quotationUpsertSucceeded = true;
+            } catch (fallbackErr) {
+              if (kDebugMode) print('Supabase saveQuotation minimal fallback error: $fallbackErr');
+            }
+          }
+        }
+
+        if (!quotationUpsertSucceeded) {
+          if (kDebugMode) print('Supabase saveQuotation: Skipping sections insert due to parent record upsert failure.');
+          return;
+        }
 
         final existingSecs = await client.from('quotation_sections').select('id').eq('quote_number', item.quoteNumber);
         if (existingSecs != null && (existingSecs as List).isNotEmpty) {
@@ -1081,7 +1148,7 @@ class AppDataRepository extends ChangeNotifier {
     final client = SupabaseService.instance.client;
     if (client != null) {
       try {
-        await client.from('invoices').upsert({
+        final Map<String, dynamic> payload = {
           'invoice_number': item.invoiceNumber,
           'customer_name': item.customerName,
           'venue': item.venue,
@@ -1094,8 +1161,41 @@ class AppDataRepository extends ChangeNotifier {
           'tax_percentage': item.taxPercentage,
           'show_advance_paid': item.showAdvancePaid,
           'advance_paid': item.advancePaid,
+          'manual_total_override': item.manualTotalOverride,
+          'manual_grand_total': item.manualGrandTotal,
+          'total_amount': item.grandTotal,
           'is_deleted': item.isDeleted,
-        }, onConflict: 'invoice_number');
+        };
+
+        bool invoiceUpsertSucceeded = false;
+        try {
+          await client.from('invoices').upsert(payload, onConflict: 'invoice_number');
+          invoiceUpsertSucceeded = true;
+        } catch (e) {
+          if (kDebugMode) print('Supabase saveInvoice full payload error: $e');
+          try {
+            final Map<String, dynamic> payloadNoVenue = Map.from(payload)..remove('venue');
+            await client.from('invoices').upsert(payloadNoVenue, onConflict: 'invoice_number');
+            invoiceUpsertSucceeded = true;
+          } catch (e2) {
+            if (kDebugMode) print('Supabase saveInvoice payload without venue error: $e2');
+            try {
+              await client.from('invoices').upsert({
+                'invoice_number': item.invoiceNumber,
+                'customer_name': item.customerName,
+                'invoice_date': item.invoiceDate,
+              }, onConflict: 'invoice_number');
+              invoiceUpsertSucceeded = true;
+            } catch (fallbackErr) {
+              if (kDebugMode) print('Supabase saveInvoice minimal fallback error: $fallbackErr');
+            }
+          }
+        }
+
+        if (!invoiceUpsertSucceeded) {
+          if (kDebugMode) print('Supabase saveInvoice: Skipping sections insert due to parent record upsert failure.');
+          return;
+        }
 
         final existingSecs = await client.from('invoice_sections').select('id').eq('invoice_number', item.invoiceNumber);
         if (existingSecs != null && (existingSecs as List).isNotEmpty) {
