@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../data/app_data_repository.dart';
 import '../models/task_model.dart';
 import '../theme/app_theme.dart';
+import '../widgets/app_loading_overlay.dart';
 import '../widgets/delete_confirmation_dialog.dart';
 
 class TasksScreen extends StatefulWidget {
@@ -180,7 +181,11 @@ class _TasksScreenState extends State<TasksScreen> {
                                   itemDetails: 'Task: ${task.title} (${task.eventTitle})',
                                 );
                                 if (confirm) {
-                                  await repository.deleteTask(task.id);
+                                  await AppLoadingOverlay.run(
+                                    context,
+                                    message: 'Deleting task...',
+                                    asyncTask: () => repository.deleteTask(task.id),
+                                  );
                                 }
                               },
                             ),
@@ -427,7 +432,11 @@ class _CreateTaskModalState extends State<_CreateTaskModal> {
                       priority: selectedPriority,
                       category: 'Today',
                     );
-                    await AppDataRepository.instance.addTask(task);
+                    await AppLoadingOverlay.run(
+                      context,
+                      message: 'Saving task...',
+                      asyncTask: () => AppDataRepository.instance.addTask(task),
+                    );
                     if (context.mounted) Navigator.pop(context);
                   }
                 },

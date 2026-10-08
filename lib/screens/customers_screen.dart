@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../data/app_data_repository.dart';
 import '../models/customer_model.dart';
 import '../theme/app_theme.dart';
+import '../widgets/app_loading_overlay.dart';
 import '../widgets/charts/customer_revenue_chart.dart';
 import '../widgets/delete_confirmation_dialog.dart';
 
@@ -60,7 +61,11 @@ class _CustomersScreenState extends State<CustomersScreen> {
       itemDetails: 'Customer: ${customer.name} (${customer.phone})',
     );
     if (confirm) {
-      await repository.deleteCustomer(customer.id);
+      await AppLoadingOverlay.run(
+        context,
+        message: 'Deleting customer...',
+        asyncTask: () => repository.deleteCustomer(customer.id),
+      );
     }
   }
 
@@ -462,7 +467,11 @@ class _EditCustomerModalState extends State<_EditCustomerModal> {
                       totalEvents: widget.customer.totalEvents,
                       isDeleted: widget.customer.isDeleted,
                     );
-                    await AppDataRepository.instance.updateCustomer(updated);
+                    await AppLoadingOverlay.run(
+                      context,
+                      message: 'Updating customer...',
+                      asyncTask: () => AppDataRepository.instance.updateCustomer(updated),
+                    );
                     if (context.mounted) Navigator.pop(context);
                   }
                 },
@@ -554,7 +563,11 @@ class _CreateCustomerModalState extends State<_CreateCustomerModal> {
                       phone: phoneController.text.trim(),
                       totalEvents: 0,
                     );
-                    await AppDataRepository.instance.addCustomer(customer);
+                    await AppLoadingOverlay.run(
+                      context,
+                      message: 'Adding customer...',
+                      asyncTask: () => AppDataRepository.instance.addCustomer(customer),
+                    );
                     if (context.mounted) Navigator.pop(context);
                   }
                 },

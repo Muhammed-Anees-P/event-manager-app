@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../data/app_data_repository.dart';
 import '../models/inventory_model.dart';
 import '../theme/app_theme.dart';
+import '../widgets/app_loading_overlay.dart';
 import '../widgets/delete_confirmation_dialog.dart';
 
 class InventoryScreen extends StatefulWidget {
@@ -86,7 +87,11 @@ class _InventoryScreenState extends State<InventoryScreen> {
                 itemDetails: 'Item: ${item.itemName} (${item.category})',
               );
               if (confirm) {
-                await repository.deleteInventory(item.id);
+                await AppLoadingOverlay.run(
+                  context,
+                  message: 'Deleting item...',
+                  asyncTask: () => repository.deleteInventory(item.id),
+                );
               }
             },
             icon: const Icon(Icons.delete_outline, color: Colors.red),
@@ -159,7 +164,11 @@ class _InventoryScreenState extends State<InventoryScreen> {
                               itemDetails: 'Item: ${item.itemName} (${item.category})',
                             );
                             if (confirm) {
-                              await repository.deleteInventory(item.id);
+                              await AppLoadingOverlay.run(
+                                context,
+                                message: 'Deleting item...',
+                                asyncTask: () => repository.deleteInventory(item.id),
+                              );
                             }
                           },
                         ),
@@ -401,7 +410,11 @@ class _CreateInventoryModalState extends State<_CreateInventoryModal> {
                       quantity: int.tryParse(qtyController.text.trim()) ?? 10,
                       rentalPrice: double.tryParse(priceController.text.trim()) ?? 1000,
                     );
-                    await AppDataRepository.instance.addInventory(item);
+                    await AppLoadingOverlay.run(
+                      context,
+                      message: 'Saving item...',
+                      asyncTask: () => AppDataRepository.instance.addInventory(item),
+                    );
                     if (context.mounted) Navigator.pop(context);
                   }
                 },

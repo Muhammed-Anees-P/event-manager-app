@@ -9,6 +9,7 @@ import '../models/payment_model.dart';
 import '../services/invoice_pdf_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/date_formatter.dart';
+import '../widgets/app_loading_overlay.dart';
 import '../widgets/delete_confirmation_dialog.dart';
 import '../widgets/app_swal_dialog.dart';
 
@@ -53,6 +54,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   bool _manualTotalOverride = false;
   final TextEditingController _manualTotalController = TextEditingController();
   bool _showDueDate = true;
+  bool _isSaving = false;
 
   late List<InvoiceSection> _sections;
 
@@ -209,11 +211,17 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                   amount: amt,
                   method: selectedMethod,
                 );
-                await repository.addPayment(payment);
 
-                inv.advancePaid = inv.advancePaid + amt;
-                inv.showAdvancePaid = true;
-                await repository.saveInvoice(inv);
+                await AppLoadingOverlay.run(
+                  ctx,
+                  message: 'Recording payment...',
+                  asyncTask: () async {
+                    await repository.addPayment(payment);
+                    inv.advancePaid = inv.advancePaid + amt;
+                    inv.showAdvancePaid = true;
+                    await repository.saveInvoice(inv);
+                  },
+                );
 
                 if (ctx.mounted) Navigator.pop(ctx);
                 if (mounted) {
@@ -249,7 +257,8 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
       _advanceController.text = di.advancePaid.toStringAsFixed(0);
       _manualTotalOverride = di.manualTotalOverride;
       _manualTotalController.text = di.manualGrandTotal.toStringAsFixed(0);
-      _sections = di.sections
+      _sections = repository
+          .sanitizeInvoiceSections(di.sections)
           .map((s) => InvoiceSection(
                 heading: s.heading,
                 items: s.items
@@ -316,8 +325,9 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
         ? invoice.manualGrandTotal.toStringAsFixed(0)
         : invoice.grandTotal.toStringAsFixed(0);
 
-    // Deep copy sections
-    _sections = invoice.sections
+    // Deep copy sections with sanitization/deduplication
+    _sections = repository
+        .sanitizeInvoiceSections(invoice.sections)
         .map((s) => InvoiceSection(
               heading: s.heading,
               items: s.items
@@ -349,6 +359,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   }
 
   InvoiceModel _buildCurrentInvoice() {
+    final sanitizedSecs = repository.sanitizeInvoiceSections(_sections);
     return InvoiceModel(
       invoiceNumber: _invoiceNumberController.text.trim().isEmpty
           ? 'INV-2026-001'
@@ -358,7 +369,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
       invoiceDate: _invoiceDateController.text.trim(),
       dueDate: _dueDateController.text.trim(),
       showDueDate: _showDueDate,
-      sections: _sections,
+      sections: sanitizedSecs,
       showDiscount: _showDiscount,
       discountAmount: double.tryParse(_discountController.text.trim()) ?? 0.0,
       showTax: _showTax,
@@ -371,16 +382,30 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   }
 
   void _saveCurrentInvoice() async {
-    final invoice = _buildCurrentInvoice();
-    await repository.saveInvoice(invoice);
-    repository.clearInvoiceDraft();
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Invoice #${invoice.invoiceNumber} saved successfully!')),
-      );
-      setState(() {
-        _mainTab = 0; // Return to All Invoices tab
-      });
+    if (_isSaving) return;
+    setState(() => _isSaving = true);
+    try {
+      final invoice = _buildCurrentInvoice();
+      await repository.saveInvoice(invoice);
+      repository.clearInvoiceDraft();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Invoice #${invoice.invoiceNumber} saved successfully!')),
+        );
+        setState(() {
+          _mainTab = 0; // Return to All Invoices tab
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving invoice: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
     }
   }
 
@@ -712,8 +737,11 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                                 ],
                               ),
                               const SizedBox(height: 12),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.end,
+                              Wrap(
+                                alignment: WrapAlignment.end,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                spacing: 8,
+                                runSpacing: 8,
                                 children: [
                                   ElevatedButton.icon(
                                     onPressed: () => _showRecordPaymentModal(context, inv),
@@ -726,24 +754,31 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                                       minimumSize: Size.zero,
                                     ),
                                   ),
-                                  const SizedBox(width: 8),
                                   OutlinedButton.icon(
                                     onPressed: () => _loadInvoiceForEdit(inv),
-                                    icon: const Icon(Icons.edit, size: 16),
-                                    label: const Text('Edit'),
+                                    icon: const Icon(Icons.edit, size: 14),
+                                    label: const Text('Edit', style: TextStyle(fontSize: 11)),
+                                    style: OutlinedButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                      minimumSize: Size.zero,
+                                    ),
                                   ),
-                                  const SizedBox(width: 8),
                                   OutlinedButton.icon(
                                     onPressed: () async {
                                       await InvoicePdfService.printInvoice(inv);
                                     },
-                                    icon: const Icon(Icons.print, size: 16),
-                                    label: const Text('Print / PDF'),
+                                    icon: const Icon(Icons.print, size: 14),
+                                    label: const Text('Print / PDF', style: TextStyle(fontSize: 11)),
+                                    style: OutlinedButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                      minimumSize: Size.zero,
+                                    ),
                                   ),
-                                  const SizedBox(width: 8),
                                   IconButton(
                                     icon: const Icon(Icons.delete_outline, color: Colors.red),
                                     tooltip: 'Delete Invoice',
+                                    constraints: const BoxConstraints(),
+                                    padding: const EdgeInsets.all(6),
                                     onPressed: () async {
                                       final confirm = await AppDeleteConfirmationDialog.show(
                                         context,
@@ -751,7 +786,11 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                                         itemDetails: 'Invoice #${inv.invoiceNumber} - ${inv.customerName} (₹${inv.grandTotal.toStringAsFixed(0)})',
                                       );
                                       if (confirm) {
-                                        await repository.deleteInvoice(inv.invoiceNumber);
+                                        await AppLoadingOverlay.run(
+                                          context,
+                                          message: 'Deleting invoice...',
+                                          asyncTask: () => repository.deleteInvoice(inv.invoiceNumber),
+                                        );
                                       }
                                     },
                                   ),
@@ -1180,9 +1219,15 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                 child: SizedBox(
                   height: 48,
                   child: ElevatedButton.icon(
-                    onPressed: _saveCurrentInvoice,
-                    icon: const Icon(Icons.save),
-                    label: const Text('Save Invoice to List'),
+                    onPressed: _isSaving ? null : _saveCurrentInvoice,
+                    icon: _isSaving
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.save),
+                    label: Text(_isSaving ? 'Saving...' : 'Save Invoice to List'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppTheme.primary,
                       minimumSize: const Size(0, 48),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../data/app_data_repository.dart';
 import '../theme/app_theme.dart';
+import '../widgets/app_loading_overlay.dart';
 
 class CompanySettingsScreen extends StatefulWidget {
   const CompanySettingsScreen({super.key});
@@ -38,18 +39,24 @@ class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
     super.dispose();
   }
 
-  void _saveSettings() {
-    repository.updateCompanySettings(
-      name: nameController.text.trim(),
-      phone: phoneController.text.trim(),
-      email: emailController.text.trim(),
-      address: addressController.text.trim(),
-      gstin: gstinController.text.trim(),
+  void _saveSettings() async {
+    await AppLoadingOverlay.run(
+      context,
+      message: 'Saving company settings...',
+      asyncTask: () => repository.updateCompanySettings(
+        name: nameController.text.trim(),
+        phone: phoneController.text.trim(),
+        email: emailController.text.trim(),
+        address: addressController.text.trim(),
+        gstin: gstinController.text.trim(),
+      ),
     );
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Company Settings saved successfully!')),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Company Settings saved successfully!')),
+      );
+    }
   }
 
   @override

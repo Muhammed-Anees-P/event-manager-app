@@ -6,6 +6,7 @@ import '../models/quotation_model.dart';
 import '../services/quotation_pdf_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/date_formatter.dart';
+import '../widgets/app_loading_overlay.dart';
 import '../widgets/delete_confirmation_dialog.dart';
 import '../widgets/app_swal_dialog.dart';
 
@@ -43,6 +44,7 @@ class _CreateQuotationScreenState extends State<CreateQuotationScreen> {
   bool _showTax = false;
   bool _showAdvancePaid = false;
   bool _manualTotalOverride = false;
+  bool _isSaving = false;
 
   late List<InvoiceSection> _sections;
 
@@ -121,7 +123,8 @@ class _CreateQuotationScreenState extends State<CreateQuotationScreen> {
         ? quotation.manualGrandTotal.toStringAsFixed(0)
         : quotation.totalAmount.toStringAsFixed(0);
 
-    _sections = quotation.sections
+    _sections = repository
+        .sanitizeInvoiceSections(quotation.sections)
         .map((s) => InvoiceSection(
               heading: s.heading,
               items: s.items
@@ -153,6 +156,7 @@ class _CreateQuotationScreenState extends State<CreateQuotationScreen> {
   }
 
   QuotationModel _buildCurrentQuotation() {
+    final sanitizedSecs = repository.sanitizeInvoiceSections(_sections);
     return QuotationModel(
       id: _editingQuotationId ?? DateTime.now().millisecondsSinceEpoch.toString(),
       quoteNumber: _quoteNumberController.text.trim().isEmpty
@@ -163,7 +167,7 @@ class _CreateQuotationScreenState extends State<CreateQuotationScreen> {
       quotationDate: _quotationDateController.text.trim(),
       dueDate: '25 Sep 2026',
       eventType: _eventTypeController.text.trim(),
-      sections: _sections,
+      sections: sanitizedSecs,
       showDiscount: _showDiscount,
       discountAmount: double.tryParse(_discountController.text.trim()) ?? 0.0,
       showTax: _showTax,
@@ -177,15 +181,29 @@ class _CreateQuotationScreenState extends State<CreateQuotationScreen> {
   }
 
   void _saveCurrentQuotation() async {
-    final quotation = _buildCurrentQuotation();
-    await repository.saveQuotation(quotation);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Quotation #${quotation.quoteNumber} saved successfully!')),
-      );
-      setState(() {
-        _mainTab = 0;
-      });
+    if (_isSaving) return;
+    setState(() => _isSaving = true);
+    try {
+      final quotation = _buildCurrentQuotation();
+      await repository.saveQuotation(quotation);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Quotation #${quotation.quoteNumber} saved successfully!')),
+        );
+        setState(() {
+          _mainTab = 0;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving quotation: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
     }
   }
 
@@ -463,26 +481,37 @@ class _CreateQuotationScreenState extends State<CreateQuotationScreen> {
                           ],
                         ),
                         const SizedBox(height: 12),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
+                        Wrap(
+                          alignment: WrapAlignment.end,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 8,
+                          runSpacing: 8,
                           children: [
                             OutlinedButton.icon(
                               onPressed: () => _loadQuotationForEdit(q),
-                              icon: const Icon(Icons.edit, size: 16),
-                              label: const Text('Edit'),
+                              icon: const Icon(Icons.edit, size: 14),
+                              label: const Text('Edit', style: TextStyle(fontSize: 11)),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                minimumSize: Size.zero,
+                              ),
                             ),
-                            const SizedBox(width: 8),
                             OutlinedButton.icon(
                               onPressed: () async {
                                 await QuotationPdfService.printQuotation(q);
                               },
-                              icon: const Icon(Icons.print, size: 16),
-                              label: const Text('Print / PDF'),
+                              icon: const Icon(Icons.print, size: 14),
+                              label: const Text('Print / PDF', style: TextStyle(fontSize: 11)),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                minimumSize: Size.zero,
+                              ),
                             ),
-                            const SizedBox(width: 8),
                             IconButton(
                               icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
                               tooltip: 'Delete Quotation',
+                              constraints: const BoxConstraints(),
+                              padding: const EdgeInsets.all(6),
                               onPressed: () async {
                                 final confirm = await AppDeleteConfirmationDialog.show(
                                   context,
@@ -490,7 +519,11 @@ class _CreateQuotationScreenState extends State<CreateQuotationScreen> {
                                   itemDetails: 'Quotation #${q.quoteNumber} - ${q.customerName} (₹${q.totalAmount.toStringAsFixed(0)})',
                                 );
                                 if (confirm) {
-                                  await repository.deleteQuotation(q.id);
+                                  await AppLoadingOverlay.run(
+                                    context,
+                                    message: 'Deleting quotation...',
+                                    asyncTask: () => repository.deleteQuotation(q.id),
+                                  );
                                 }
                               },
                             ),
@@ -872,9 +905,15 @@ class _CreateQuotationScreenState extends State<CreateQuotationScreen> {
                 child: SizedBox(
                   height: 48,
                   child: ElevatedButton.icon(
-                    onPressed: _saveCurrentQuotation,
-                    icon: const Icon(Icons.save),
-                    label: const Text('Save Quotation to List'),
+                    onPressed: _isSaving ? null : _saveCurrentQuotation,
+                    icon: _isSaving
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.save),
+                    label: Text(_isSaving ? 'Saving...' : 'Save Quotation to List'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppTheme.primary,
                       minimumSize: const Size(0, 48),

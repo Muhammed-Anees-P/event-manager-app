@@ -316,6 +316,8 @@ class AppDataRepository extends ChangeNotifier {
           );
         }
 
+        final sanitizedSections = sanitizeInvoiceSections(parsedSections);
+
         return QuotationModel(
           id: map['id'].toString(),
           quoteNumber: map['quote_number'] ?? '',
@@ -324,7 +326,7 @@ class AppDataRepository extends ChangeNotifier {
           quotationDate: map['date'] ?? '',
           dueDate: map['due_date'] ?? '25 Sep 2026',
           eventType: map['event_type'] ?? 'Wedding Event',
-          sections: parsedSections,
+          sections: sanitizedSections,
           showDiscount: map['show_discount'] ?? false,
           discountAmount: (map['discount_amount'] as num?)?.toDouble() ?? 0.0,
           showTax: map['show_tax'] ?? false,
@@ -424,6 +426,8 @@ class AppDataRepository extends ChangeNotifier {
           );
         }
 
+        final sanitizedSections = sanitizeInvoiceSections(parsedSections);
+
         return InvoiceModel(
           invoiceNumber: invMap['invoice_number'] ?? '',
           customerName: invMap['customer_name'] ?? '',
@@ -431,7 +435,7 @@ class AppDataRepository extends ChangeNotifier {
           invoiceDate: invMap['invoice_date'] ?? '',
           dueDate: invMap['due_date'] ?? '',
           showDueDate: invMap['show_due_date'] ?? true,
-          sections: parsedSections,
+          sections: sanitizedSections,
           showDiscount: invMap['show_discount'] ?? false,
           discountAmount: (invMap['discount_amount'] as num?)?.toDouble() ?? 0.0,
           showTax: invMap['show_tax'] ?? true,
@@ -813,7 +817,68 @@ class AppDataRepository extends ChangeNotifier {
     }
   }
 
+  List<InvoiceSection> sanitizeInvoiceSections(List<InvoiceSection> rawSections) {
+    if (rawSections.isEmpty) return [];
+
+    final List<InvoiceSection> cleanedSections = [];
+
+    for (final sec in rawSections) {
+      final heading = sec.heading.trim();
+      final existingSecIdx = cleanedSections.indexWhere(
+        (s) => s.heading.trim().toLowerCase() == heading.toLowerCase(),
+      );
+
+      if (existingSecIdx >= 0) {
+        final existingSec = cleanedSections[existingSecIdx];
+        for (final item in sec.items) {
+          final isDup = item.name.trim().isNotEmpty &&
+              existingSec.items.any((existing) =>
+                  existing.name.trim().toLowerCase() == item.name.trim().toLowerCase() &&
+                  existing.price == item.price &&
+                  existing.qty == item.qty &&
+                  existing.rate == item.rate);
+
+          if (!isDup) {
+            existingSec.items.add(InvoiceItem(
+              name: item.name,
+              qty: item.qty,
+              rate: item.rate,
+              price: item.price,
+            ));
+          }
+        }
+      } else {
+        final List<InvoiceItem> cleanedItems = [];
+        for (final item in sec.items) {
+          final isDup = item.name.trim().isNotEmpty &&
+              cleanedItems.any((existing) =>
+                  existing.name.trim().toLowerCase() == item.name.trim().toLowerCase() &&
+                  existing.price == item.price &&
+                  existing.qty == item.qty &&
+                  existing.rate == item.rate);
+
+          if (!isDup) {
+            cleanedItems.add(InvoiceItem(
+              name: item.name,
+              qty: item.qty,
+              rate: item.rate,
+              price: item.price,
+            ));
+          }
+        }
+
+        cleanedSections.add(InvoiceSection(
+          heading: heading.isNotEmpty ? heading : 'Event Services',
+          items: cleanedItems,
+        ));
+      }
+    }
+
+    return cleanedSections;
+  }
+
   Future<void> saveQuotation(QuotationModel item) async {
+    item.sections = sanitizeInvoiceSections(item.sections);
     final idx = quotations.indexWhere((q) => q.id == item.id || q.quoteNumber == item.quoteNumber);
     if (idx >= 0) {
       quotations[idx] = item;
@@ -879,17 +944,27 @@ class AppDataRepository extends ChangeNotifier {
           return;
         }
 
-        final existingSecs = await client.from('quotation_sections').select('id').eq('quote_number', item.quoteNumber);
-        if (existingSecs != null && (existingSecs as List).isNotEmpty) {
-          final secIds = (existingSecs as List).map((s) => s['id'].toString()).toList();
-          for (final sid in secIds) {
-            try {
-              await client.from('quotation_items').delete().eq('section_id', sid);
-            } catch (_) {}
+        try {
+          final existingSecs = await client
+              .from('quotation_sections')
+              .select('id')
+              .eq('quote_number', item.quoteNumber);
+          if (existingSecs != null && (existingSecs as List).isNotEmpty) {
+            for (final s in existingSecs as List) {
+              final sid = s['id']?.toString();
+              if (sid != null && sid.isNotEmpty) {
+                await client.from('quotation_items').delete().eq('section_id', sid);
+              }
+            }
           }
-          try {
-            await client.from('quotation_sections').delete().eq('quote_number', item.quoteNumber);
-          } catch (_) {}
+        } catch (e) {
+          if (kDebugMode) print('Supabase delete quotation_items error: $e');
+        }
+
+        try {
+          await client.from('quotation_sections').delete().eq('quote_number', item.quoteNumber);
+        } catch (e) {
+          if (kDebugMode) print('Supabase delete quotation_sections error: $e');
         }
 
         for (int sIdx = 0; sIdx < item.sections.length; sIdx++) {
@@ -900,17 +975,22 @@ class AppDataRepository extends ChangeNotifier {
             'section_order': sIdx,
           }).select('id').single();
 
-          final String sectionId = secRes['id'].toString();
+          final String sectionId = secRes['id']?.toString() ?? '';
+          if (sectionId.isEmpty) continue;
 
-          for (final itemRow in section.items) {
+          final List<Map<String, dynamic>> itemsPayload = section.items.map((itemRow) {
+            return {
+              'section_id': sectionId,
+              'name': itemRow.name,
+              'qty': itemRow.qty,
+              'rate': itemRow.rate,
+              'price': itemRow.price,
+            };
+          }).toList();
+
+          if (itemsPayload.isNotEmpty) {
             try {
-              await client.from('quotation_items').insert({
-                'section_id': sectionId,
-                'name': itemRow.name,
-                'qty': itemRow.qty,
-                'rate': itemRow.rate,
-                'price': itemRow.price,
-              });
+              await client.from('quotation_items').insert(itemsPayload);
             } catch (itemErr) {
               if (kDebugMode) print('Supabase quotation_items insert warning: $itemErr');
             }
@@ -1093,6 +1173,7 @@ class AppDataRepository extends ChangeNotifier {
   }
 
   Future<void> saveInvoice(InvoiceModel item) async {
+    item.sections = sanitizeInvoiceSections(item.sections);
     final index = invoices.indexWhere((i) => i.invoiceNumber == item.invoiceNumber);
     if (index >= 0) {
       invoices[index] = item;
@@ -1197,17 +1278,27 @@ class AppDataRepository extends ChangeNotifier {
           return;
         }
 
-        final existingSecs = await client.from('invoice_sections').select('id').eq('invoice_number', item.invoiceNumber);
-        if (existingSecs != null && (existingSecs as List).isNotEmpty) {
-          final secIds = (existingSecs as List).map((s) => s['id'].toString()).toList();
-          for (final sid in secIds) {
-            try {
-              await client.from('invoice_items').delete().eq('section_id', sid);
-            } catch (_) {}
+        try {
+          final existingSecs = await client
+              .from('invoice_sections')
+              .select('id')
+              .eq('invoice_number', item.invoiceNumber);
+          if (existingSecs != null && (existingSecs as List).isNotEmpty) {
+            for (final s in existingSecs as List) {
+              final sid = s['id']?.toString();
+              if (sid != null && sid.isNotEmpty) {
+                await client.from('invoice_items').delete().eq('section_id', sid);
+              }
+            }
           }
-          try {
-            await client.from('invoice_sections').delete().eq('invoice_number', item.invoiceNumber);
-          } catch (_) {}
+        } catch (e) {
+          if (kDebugMode) print('Supabase delete invoice_items error: $e');
+        }
+
+        try {
+          await client.from('invoice_sections').delete().eq('invoice_number', item.invoiceNumber);
+        } catch (e) {
+          if (kDebugMode) print('Supabase delete invoice_sections error: $e');
         }
 
         for (int sIdx = 0; sIdx < item.sections.length; sIdx++) {
@@ -1218,17 +1309,22 @@ class AppDataRepository extends ChangeNotifier {
             'section_order': sIdx,
           }).select('id').single();
 
-          final String sectionId = secRes['id'].toString();
+          final String sectionId = secRes['id']?.toString() ?? '';
+          if (sectionId.isEmpty) continue;
 
-          for (final itemRow in section.items) {
+          final List<Map<String, dynamic>> itemsPayload = section.items.map((itemRow) {
+            return {
+              'section_id': sectionId,
+              'name': itemRow.name,
+              'qty': itemRow.qty,
+              'rate': itemRow.rate,
+              'price': itemRow.price,
+            };
+          }).toList();
+
+          if (itemsPayload.isNotEmpty) {
             try {
-              await client.from('invoice_items').insert({
-                'section_id': sectionId,
-                'name': itemRow.name,
-                'qty': itemRow.qty,
-                'rate': itemRow.rate,
-                'price': itemRow.price,
-              });
+              await client.from('invoice_items').insert(itemsPayload);
             } catch (itemErr) {
               if (kDebugMode) print('Supabase invoice_items insert warning: $itemErr');
             }

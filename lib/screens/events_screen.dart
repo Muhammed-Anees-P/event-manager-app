@@ -3,6 +3,7 @@ import '../data/app_data_repository.dart';
 import '../models/event_model.dart';
 import '../theme/app_theme.dart';
 import '../utils/date_formatter.dart';
+import '../widgets/app_loading_overlay.dart';
 
 class EventsScreen extends StatefulWidget {
   final Function(EventModel) onSelectEvent;
@@ -502,7 +503,11 @@ class _CreateEventModalState extends State<_CreateEventModal> {
                         contractValue: double.tryParse(contractController.text.trim()) ?? 0,
                         amountReceived: double.tryParse(receivedController.text.trim()) ?? 0,
                       );
-                      await AppDataRepository.instance.addEvent(event);
+                      await AppLoadingOverlay.run(
+                        context,
+                        message: 'Scheduling event...',
+                        asyncTask: () => AppDataRepository.instance.addEvent(event),
+                      );
                       if (context.mounted) Navigator.pop(context);
                     }
                   },

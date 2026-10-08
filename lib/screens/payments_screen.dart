@@ -6,6 +6,7 @@ import '../models/app_notification_model.dart';
 import '../services/cash_receipt_pdf_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/date_formatter.dart';
+import '../widgets/app_loading_overlay.dart';
 import '../widgets/delete_confirmation_dialog.dart';
 
 class PaymentsScreen extends StatefulWidget {
@@ -99,7 +100,11 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
                       amount: double.tryParse(amountController.text.trim()) ?? p.amount,
                       method: selectedMethod,
                     );
-                    await repository.updatePayment(updated);
+                    await AppLoadingOverlay.run(
+                      ctx,
+                      message: 'Updating payment...',
+                      asyncTask: () => repository.updatePayment(updated),
+                    );
                     if (ctx.mounted) Navigator.pop(ctx);
                     setState(() {});
                   },
@@ -293,7 +298,11 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
                                             itemDetails: '${p.eventType} - ₹${p.amount.toStringAsFixed(0)} (${p.method})',
                                           );
                                           if (confirm) {
-                                            await repository.deletePayment(p.id);
+                                            await AppLoadingOverlay.run(
+                                              context,
+                                              message: 'Deleting payment...',
+                                              asyncTask: () => repository.deletePayment(p.id),
+                                            );
                                           }
                                         },
                                         constraints: const BoxConstraints(),
@@ -456,7 +465,11 @@ class _CreatePaymentModalState extends State<_CreatePaymentModal> {
                       amount: double.tryParse(amountController.text.trim()) ?? 0,
                       method: selectedMethod,
                     );
-                    await AppDataRepository.instance.addPayment(payment);
+                    await AppLoadingOverlay.run(
+                      context,
+                      message: 'Saving payment...',
+                      asyncTask: () => AppDataRepository.instance.addPayment(payment),
+                    );
 
                     AppDataRepository.instance.addNotification(
                       AppNotificationModel(

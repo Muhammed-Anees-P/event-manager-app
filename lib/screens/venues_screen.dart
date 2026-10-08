@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../data/app_data_repository.dart';
 import '../models/venue_model.dart';
 import '../theme/app_theme.dart';
+import '../widgets/app_loading_overlay.dart';
 import '../widgets/delete_confirmation_dialog.dart';
 
 class VenuesScreen extends StatefulWidget {
@@ -87,7 +88,11 @@ class _VenuesScreenState extends State<VenuesScreen> {
                 itemDetails: 'Venue: ${v.name} (${v.location})',
               );
               if (confirm) {
-                await repository.deleteVenue(v.id);
+                await AppLoadingOverlay.run(
+                  context,
+                  message: 'Deleting venue...',
+                  asyncTask: () => repository.deleteVenue(v.id),
+                );
               }
             },
             icon: const Icon(Icons.delete_outline, color: Colors.red),
@@ -160,7 +165,11 @@ class _VenuesScreenState extends State<VenuesScreen> {
                               itemDetails: 'Venue: ${v.name} (${v.location})',
                             );
                             if (confirm) {
-                              await repository.deleteVenue(v.id);
+                              await AppLoadingOverlay.run(
+                                context,
+                                message: 'Deleting venue...',
+                                asyncTask: () => repository.deleteVenue(v.id),
+                              );
                             }
                           },
                         ),
@@ -412,7 +421,11 @@ class _CreateVenueModalState extends State<_CreateVenueModal> {
                       pricePerDay: double.tryParse(priceController.text.trim()) ?? 50000,
                       contactPerson: contactController.text.trim().isEmpty ? 'Manager' : contactController.text.trim(),
                     );
-                    await AppDataRepository.instance.addVenue(venue);
+                    await AppLoadingOverlay.run(
+                      context,
+                      message: 'Saving venue...',
+                      asyncTask: () => AppDataRepository.instance.addVenue(venue),
+                    );
                     if (context.mounted) Navigator.pop(context);
                   }
                 },

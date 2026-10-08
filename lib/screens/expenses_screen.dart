@@ -3,6 +3,7 @@ import '../data/app_data_repository.dart';
 import '../models/expense_model.dart';
 import '../theme/app_theme.dart';
 import '../utils/date_formatter.dart';
+import '../widgets/app_loading_overlay.dart';
 import '../widgets/delete_confirmation_dialog.dart';
 
 class ExpensesScreen extends StatefulWidget {
@@ -103,7 +104,11 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                             itemDetails: '${e.title} - ₹${e.amount.toStringAsFixed(0)} (${e.category})',
                           );
                           if (confirm) {
-                            await repository.deleteExpense(e.id);
+                            await AppLoadingOverlay.run(
+                              context,
+                              message: 'Deleting expense...',
+                              asyncTask: () => repository.deleteExpense(e.id),
+                            );
                           }
                         },
                       ),
@@ -213,7 +218,11 @@ class _CreateExpenseModalState extends State<_CreateExpenseModal> {
                       date: AppDateUtils.getTodayDate(),
                       paymentMethod: selectedMethod,
                     );
-                    await AppDataRepository.instance.addExpense(expense);
+                    await AppLoadingOverlay.run(
+                      context,
+                      message: 'Saving expense...',
+                      asyncTask: () => AppDataRepository.instance.addExpense(expense),
+                    );
                     if (context.mounted) Navigator.pop(context);
                   }
                 },

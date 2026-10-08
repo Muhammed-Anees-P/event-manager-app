@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../data/app_data_repository.dart';
 import '../models/vendor_model.dart';
 import '../theme/app_theme.dart';
+import '../widgets/app_loading_overlay.dart';
 import '../widgets/delete_confirmation_dialog.dart';
 
 class VendorsScreen extends StatefulWidget {
@@ -87,7 +88,11 @@ class _VendorsScreenState extends State<VendorsScreen> {
                 itemDetails: 'Vendor: ${v.name} (${v.category})',
               );
               if (confirm) {
-                await repository.deleteVendor(v.id);
+                await AppLoadingOverlay.run(
+                  context,
+                  message: 'Deleting vendor...',
+                  asyncTask: () => repository.deleteVendor(v.id),
+                );
               }
             },
             icon: const Icon(Icons.delete_outline, color: Colors.red),
@@ -160,7 +165,11 @@ class _VendorsScreenState extends State<VendorsScreen> {
                               itemDetails: 'Vendor: ${v.name} (${v.category})',
                             );
                             if (confirm) {
-                              await repository.deleteVendor(v.id);
+                              await AppLoadingOverlay.run(
+                                context,
+                                message: 'Deleting vendor...',
+                                asyncTask: () => repository.deleteVendor(v.id),
+                              );
                             }
                           },
                         ),
@@ -389,7 +398,11 @@ class _CreateVendorModalState extends State<_CreateVendorModal> {
                       email: emailController.text.trim(),
                       rating: '⭐ 4.8',
                     );
-                    await AppDataRepository.instance.addVendor(vendor);
+                    await AppLoadingOverlay.run(
+                      context,
+                      message: 'Saving vendor...',
+                      asyncTask: () => AppDataRepository.instance.addVendor(vendor),
+                    );
                     if (context.mounted) Navigator.pop(context);
                   }
                 },

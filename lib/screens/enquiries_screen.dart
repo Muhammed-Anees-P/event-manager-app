@@ -3,6 +3,7 @@ import '../data/app_data_repository.dart';
 import '../models/enquiry_model.dart';
 import '../theme/app_theme.dart';
 import '../utils/date_formatter.dart';
+import '../widgets/app_loading_overlay.dart';
 import '../widgets/delete_confirmation_dialog.dart';
 
 class EnquiriesScreen extends StatefulWidget {
@@ -257,7 +258,11 @@ class _EnquiriesScreenState extends State<EnquiriesScreen> {
                                               amount: enquiry.amount,
                                               status: newStatus,
                                             );
-                                            await repository.updateEnquiry(updated);
+                                            await AppLoadingOverlay.run(
+                                              context,
+                                              message: 'Updating enquiry...',
+                                              asyncTask: () => repository.updateEnquiry(updated),
+                                            );
                                           }
                                         },
                                       ),
@@ -286,7 +291,11 @@ class _EnquiriesScreenState extends State<EnquiriesScreen> {
                                           itemDetails: 'Client: ${enquiry.name} (${enquiry.type})',
                                         );
                                         if (confirm) {
-                                          await repository.deleteEnquiry(enquiry.id);
+                                          await AppLoadingOverlay.run(
+                                            context,
+                                            message: 'Deleting enquiry...',
+                                            asyncTask: () => repository.deleteEnquiry(enquiry.id),
+                                          );
                                         }
                                       },
                                     ),
@@ -552,7 +561,11 @@ class _EditEnquiryModalState extends State<_EditEnquiryModal> {
                       amount: double.tryParse(amountController.text.trim()) ?? 0,
                       status: selectedStatus,
                     );
-                    await AppDataRepository.instance.updateEnquiry(updated);
+                    await AppLoadingOverlay.run(
+                      context,
+                      message: 'Updating enquiry...',
+                      asyncTask: () => AppDataRepository.instance.updateEnquiry(updated),
+                    );
                     if (context.mounted) Navigator.pop(context);
                   }
                 },
@@ -666,7 +679,11 @@ class _CreateEnquiryModalState extends State<_CreateEnquiryModal> {
                       amount: double.tryParse(amountController.text.trim()) ?? 0,
                       status: selectedStatus,
                     );
-                    await AppDataRepository.instance.addEnquiry(enquiry);
+                    await AppLoadingOverlay.run(
+                      context,
+                      message: 'Saving enquiry...',
+                      asyncTask: () => AppDataRepository.instance.addEnquiry(enquiry),
+                    );
                     if (context.mounted) Navigator.pop(context);
                   }
                 },

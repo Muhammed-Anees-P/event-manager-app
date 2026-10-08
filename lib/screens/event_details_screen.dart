@@ -7,6 +7,7 @@ import '../models/payment_model.dart';
 import '../services/invoice_pdf_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/date_formatter.dart';
+import '../widgets/app_loading_overlay.dart';
 import '../widgets/delete_confirmation_dialog.dart';
 import 'create_invoice_screen.dart';
 import 'tasks_screen.dart';
@@ -112,7 +113,6 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> with SingleTick
                   return;
                 }
 
-                // 1. Add Payment Transaction
                 final payment = PaymentModel(
                   id: DateTime.now().millisecondsSinceEpoch.toString(),
                   date: AppDateUtils.getTodayDate(),
@@ -120,12 +120,17 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> with SingleTick
                   amount: amt,
                   method: selectedMethod,
                 );
-                await repository.addPayment(payment);
 
-                // 2. Update Invoice Advance Paid
-                inv.advancePaid = inv.advancePaid + amt;
-                inv.showAdvancePaid = true;
-                await repository.saveInvoice(inv);
+                await AppLoadingOverlay.run(
+                  ctx,
+                  message: 'Recording payment...',
+                  asyncTask: () async {
+                    await repository.addPayment(payment);
+                    inv.advancePaid = inv.advancePaid + amt;
+                    inv.showAdvancePaid = true;
+                    await repository.saveInvoice(inv);
+                  },
+                );
 
                 if (ctx.mounted) Navigator.pop(ctx);
                 if (mounted) {
@@ -240,7 +245,11 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> with SingleTick
       itemDetails: 'Event: ${event.title} (${event.venue})',
     );
     if (confirm) {
-      await repository.deleteEvent(event.id);
+      await AppLoadingOverlay.run(
+        context,
+        message: 'Deleting event...',
+        asyncTask: () => repository.deleteEvent(event.id),
+      );
       widget.onBack();
     }
   }
@@ -836,8 +845,11 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> with SingleTick
                               ],
                             ),
                             const Divider(height: 16),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
+                            Wrap(
+                              alignment: WrapAlignment.end,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              spacing: 8,
+                              runSpacing: 8,
                               children: [
                                 ElevatedButton.icon(
                                   onPressed: () => _showRecordPaymentForInvoice(context, inv),
@@ -850,7 +862,6 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> with SingleTick
                                     minimumSize: Size.zero,
                                   ),
                                 ),
-                                const SizedBox(width: 8),
                                 OutlinedButton.icon(
                                   onPressed: () async {
                                     await InvoicePdfService.printInvoice(inv);
@@ -862,10 +873,11 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> with SingleTick
                                     minimumSize: Size.zero,
                                   ),
                                 ),
-                                const SizedBox(width: 8),
                                 IconButton(
                                   icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
                                   tooltip: 'Delete Invoice',
+                                  constraints: const BoxConstraints(),
+                                  padding: const EdgeInsets.all(6),
                                   onPressed: () async {
                                     final confirm = await AppDeleteConfirmationDialog.show(
                                       context,
@@ -873,7 +885,11 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> with SingleTick
                                       itemDetails: 'Invoice #${inv.invoiceNumber} - ${inv.customerName}',
                                     );
                                     if (confirm) {
-                                      await repository.deleteInvoice(inv.invoiceNumber);
+                                      await AppLoadingOverlay.run(
+                                        context,
+                                        message: 'Deleting invoice...',
+                                        asyncTask: () => repository.deleteInvoice(inv.invoiceNumber),
+                                      );
                                     }
                                   },
                                 ),
