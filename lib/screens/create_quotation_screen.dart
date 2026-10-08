@@ -23,6 +23,7 @@ class CreateQuotationScreen extends StatefulWidget {
 class _CreateQuotationScreenState extends State<CreateQuotationScreen> {
   int _mainTab = 0; // 0 = All Quotations, 1 = Form Builder & Customizer
   int _formSubTab = 0; // 0 = Edit Form, 1 = Template Preview
+  String? _editingQuotationId;
 
   final repository = AppDataRepository.instance;
 
@@ -71,6 +72,7 @@ class _CreateQuotationScreenState extends State<CreateQuotationScreen> {
   }
 
   void _resetFormToNew() {
+    _editingQuotationId = null;
     _customerController.text = '';
     _venueController.text = '';
     _quotationDateController.text = AppDateUtils.getTodayDate();
@@ -86,10 +88,18 @@ class _CreateQuotationScreenState extends State<CreateQuotationScreen> {
     _showAdvancePaid = false;
     _manualTotalOverride = false;
 
-    _sections = []; // Empty sections list for fresh quotation creation
+    _sections = [
+      InvoiceSection(
+        heading: 'Event Services',
+        items: [
+          InvoiceItem(name: 'Main Event Package', price: 0),
+        ],
+      ),
+    ];
   }
 
   void _loadQuotationForEdit(QuotationModel quotation) {
+    _editingQuotationId = quotation.id;
     _customerController.text = quotation.customerName;
     _venueController.text = quotation.venue;
     _quotationDateController.text = quotation.quotationDate;
@@ -106,7 +116,9 @@ class _CreateQuotationScreenState extends State<CreateQuotationScreen> {
     _advanceController.text = quotation.advancePaid.toStringAsFixed(0);
 
     _manualTotalOverride = quotation.manualTotalOverride;
-    _manualTotalController.text = quotation.manualGrandTotal.toStringAsFixed(0);
+    _manualTotalController.text = quotation.manualGrandTotal > 0
+        ? quotation.manualGrandTotal.toStringAsFixed(0)
+        : quotation.totalAmount.toStringAsFixed(0);
 
     _sections = quotation.sections
         .map((s) => InvoiceSection(
@@ -122,6 +134,17 @@ class _CreateQuotationScreenState extends State<CreateQuotationScreen> {
             ))
         .toList();
 
+    if (_sections.isEmpty) {
+      _sections = [
+        InvoiceSection(
+          heading: 'Event Services',
+          items: [
+            InvoiceItem(name: 'Main Event Package', price: quotation.totalAmount),
+          ],
+        ),
+      ];
+    }
+
     setState(() {
       _mainTab = 1;
       _formSubTab = 0;
@@ -130,7 +153,7 @@ class _CreateQuotationScreenState extends State<CreateQuotationScreen> {
 
   QuotationModel _buildCurrentQuotation() {
     return QuotationModel(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      id: _editingQuotationId ?? DateTime.now().millisecondsSinceEpoch.toString(),
       quoteNumber: _quoteNumberController.text.trim().isEmpty
           ? 'QT-2026-001'
           : _quoteNumberController.text.trim(),
@@ -186,44 +209,72 @@ class _CreateQuotationScreenState extends State<CreateQuotationScreen> {
     });
   }
 
-  Future<bool> _onWillPop(BuildContext context) async {
-    if (_mainTab == 0) return true;
-    final result = await showDialog<String>(
+  double _calculateItemsGrandTotal() {
+    final rawSubtotal = _sections.fold(0.0, (sum, sec) => sum + sec.subtotal);
+    final discount = _showDiscount ? (double.tryParse(_discountController.text.trim()) ?? 0.0) : 0.0;
+    final subtotalAfterDiscount = (rawSubtotal - discount).clamp(0.0, double.infinity);
+    final taxPct = _showTax ? (double.tryParse(_taxController.text.trim()) ?? 18.0) : 0.0;
+    final tax = subtotalAfterDiscount * (taxPct / 100);
+    return subtotalAfterDiscount + tax;
+  }
+
+  Future<void> _handleBackNavigation() async {
+    if (_mainTab == 0) {
+      if (widget.onBack != null) {
+        widget.onBack!();
+      } else if (Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
+      return;
+    }
+
+    final String? result = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Unsaved Changes'),
-        content: const Text('You are editing a quotation. Do you want to save your work before going back?'),
+        content: const Text('You have entered or modified data in this quotation. What would you like to do?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, 'discard'), child: const Text('Discard', style: TextStyle(color: Colors.red))),
-          TextButton(onPressed: () => Navigator.pop(ctx, 'cancel'), child: const Text('Cancel')),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, 'save'), child: const Text('Save Work')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'discard'),
+            child: const Text('Discard', style: TextStyle(color: Colors.red)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'cancel'),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, 'save'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primary,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Save & Exit'),
+          ),
         ],
       ),
     );
 
     if (result == 'save') {
       _saveCurrentQuotation();
-      return false;
     } else if (result == 'discard') {
-      return true;
+      _resetFormToNew();
+      if (widget.onBack != null && repository.activeQuotations.isEmpty) {
+        widget.onBack!();
+      } else {
+        setState(() {
+          _mainTab = 0;
+        });
+      }
     }
-    return false;
   }
 
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: _mainTab == 0,
-      onPopInvoked: (didPop) async {
+      canPop: _mainTab == 0 && widget.onBack == null,
+      onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
-        final shouldPop = await _onWillPop(context);
-        if (shouldPop && context.mounted) {
-          if (widget.onBack != null) {
-            widget.onBack!();
-          } else {
-            Navigator.pop(context);
-          }
-        }
+        await _handleBackNavigation();
       },
       child: Material(
         color: AppTheme.background,
@@ -238,18 +289,21 @@ class _CreateQuotationScreenState extends State<CreateQuotationScreen> {
               ),
               child: Row(
                 children: [
-                  if (widget.onBack != null)
+                  if (widget.onBack != null || _mainTab == 1)
                     IconButton(
                       icon: const Icon(Icons.arrow_back, color: Color(0xFF1F2937)),
-                      onPressed: widget.onBack,
+                      onPressed: _handleBackNavigation,
                     ),
                   Expanded(
-                    child: Row(
-                      children: [
-                        _buildMainTabButton(0, Icons.description_outlined, 'All Quotations (${repository.quotations.length})'),
-                        const SizedBox(width: 8),
-                        _buildMainTabButton(1, Icons.tune, 'Quotation Form & Customization'),
-                      ],
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _buildMainTabButton(0, Icons.description_outlined, 'All Quotations (${repository.quotations.length})'),
+                          const SizedBox(width: 8),
+                          _buildMainTabButton(1, Icons.tune, 'Quotation Form & Customization'),
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -262,12 +316,20 @@ class _CreateQuotationScreenState extends State<CreateQuotationScreen> {
                       });
                     },
                     icon: const Icon(Icons.add, size: 16),
-                    label: const Text('+ Create New Quotation'),
+                    label: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final screenWidth = MediaQuery.of(context).size.width;
+                        if (screenWidth < 600) {
+                          return const Text('+ New Quote');
+                        }
+                        return const Text('+ Create New Quotation');
+                      },
+                    ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppTheme.primary,
                       foregroundColor: Colors.white,
                       minimumSize: const Size(0, 38),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                     ),
                   ),
                 ],
@@ -777,7 +839,18 @@ class _CreateQuotationScreenState extends State<CreateQuotationScreen> {
                     subtitle: const Text('Enable to directly edit/control the total amount without itemizing'),
                     value: _manualTotalOverride,
                     activeColor: AppTheme.primary,
-                    onChanged: (val) => setState(() => _manualTotalOverride = val),
+                    onChanged: (val) {
+                      setState(() {
+                        _manualTotalOverride = val;
+                        if (val) {
+                          final calculated = _calculateItemsGrandTotal();
+                          final currentManualVal = double.tryParse(_manualTotalController.text.trim()) ?? 0.0;
+                          if (currentManualVal <= 0 || currentManualVal == calculated) {
+                            _manualTotalController.text = calculated > 0 ? calculated.toStringAsFixed(0) : '0';
+                          }
+                        }
+                      });
+                    },
                   ),
                 ),
                 if (_manualTotalOverride)
@@ -1107,6 +1180,14 @@ class _QuotationSectionEditorState extends State<_QuotationSectionEditor> {
   }
 
   @override
+  void didUpdateWidget(covariant _QuotationSectionEditor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.section != widget.section || headingController.text != widget.section.heading) {
+      headingController.text = widget.section.heading;
+    }
+  }
+
+  @override
   void dispose() {
     headingController.dispose();
     super.dispose();
@@ -1218,6 +1299,17 @@ class _QuotationItemRowState extends State<_QuotationItemRow> {
     qtyController = TextEditingController(text: widget.item.qty != null ? '${widget.item.qty}' : '');
     rateController = TextEditingController(text: widget.item.rate != null ? '${widget.item.rate}' : '');
     priceController = TextEditingController(text: '${widget.item.price.toStringAsFixed(0)}');
+  }
+
+  @override
+  void didUpdateWidget(covariant _QuotationItemRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.item != widget.item) {
+      nameController.text = widget.item.name;
+      qtyController.text = widget.item.qty != null ? '${widget.item.qty}' : '';
+      rateController.text = widget.item.rate != null ? '${widget.item.rate}' : '';
+      priceController.text = widget.item.price.toStringAsFixed(0);
+    }
   }
 
   @override
