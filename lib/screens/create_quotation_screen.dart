@@ -7,6 +7,7 @@ import '../services/quotation_pdf_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/date_formatter.dart';
 import '../widgets/delete_confirmation_dialog.dart';
+import '../widgets/app_swal_dialog.dart';
 
 class CreateQuotationScreen extends StatefulWidget {
   final VoidCallback? onBack;
@@ -228,30 +229,10 @@ class _CreateQuotationScreenState extends State<CreateQuotationScreen> {
       return;
     }
 
-    final String? result = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Unsaved Changes'),
-        content: const Text('You have entered or modified data in this quotation. What would you like to do?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, 'discard'),
-            child: const Text('Discard', style: TextStyle(color: Colors.red)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, 'cancel'),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, 'save'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primary,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Save & Exit'),
-          ),
-        ],
-      ),
+    final String? result = await AppSwalDialog.showUnsavedChanges(
+      context,
+      title: 'Unsaved Quotation Changes',
+      message: 'You have entered or modified data in this quotation. What would you like to do before going back?',
     );
 
     if (result == 'save') {
